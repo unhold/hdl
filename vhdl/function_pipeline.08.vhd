@@ -12,6 +12,10 @@ entity function_pipeline is
 		signal datai_i : in datai_t;
 		signal datao_o : out datao_t);
 
+	-- These assertions crash Questa 10.5c. Too fancy together with VHDL-2008?
+	--OFFpsl default clock is rising_edge(clk_i);
+	--OFFpsl assert next[stages_c] (always datao_o = fun(prev(datai_i, stages_c)));
+
 end;
 
 
