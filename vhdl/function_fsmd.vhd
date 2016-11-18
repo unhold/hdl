@@ -1,10 +1,10 @@
--- Demonstration of a functional FSMD coding style.
+-- Demonstration of a_i functional FSMD coding style.
 entity function_fsmd is
 	port(
-		signal clk,
-			reset : in bit;
-		signal a, b : in bit;
-		signal x, y : out bit);
+		clk_i,
+		reset_i : in bit;
+		a_i, b_i : in bit;
+		x_o, y_o : out bit);
 end;
 
 
@@ -17,7 +17,7 @@ architecture rtl of function_fsmd is
 		x : bit;
 	end record;
 
-	constant c_resestate_t : state_t := (
+	constant reset_state_c : state_t := (
 		seq => idle,
 		x => '0');
 
@@ -28,14 +28,14 @@ architecture rtl of function_fsmd is
 	begin
 		case r.seq is
 			when idle =>
-				if a = '1' then
+				if a_i = '1' then
 					n.seq := start;
 				end if;
 			when start =>
 				n.seq := run;
 				n.x := '1';
 			when run =>
-				if b = '1' then
+				if b_i = '1' then
 					n.seq := idle;
 					n.x := '0';
 				end if;
@@ -45,15 +45,23 @@ architecture rtl of function_fsmd is
 
 begin
 
-	sync : process(clk, reset)
+	sync : process(clk_i, reset_i)
 	begin
-		if reset = '1' then
-			r <= c_resestate_t;
-		elsif rising_edge(clk) then
+		if reset_i = '1' then
+			r <= reset_state_c;
+		elsif rising_edge(clk_i) then
 			r <= delta(r);
 		end if;
 	end process;
 
-	x <= r.x;
+	lambda : process(r, b_i)
+	begin
+		x_o <= r.x;
+		if r.seq = idle then
+			y_o <= b_i;
+		else
+			y_o <= '0';
+		end if;
+	end process;
 
 end;
