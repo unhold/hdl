@@ -62,17 +62,29 @@ package body vether is
 		end if;
 	end;
 
-	function to_pma(pls : pls_t) return pma_t is
+	function to_pma_data(pls : pls_t) return pma_t is
 	begin
 		if pls'length = 0 then
 			return "";
 		else
 			return to_manchester(pls(pls'left))
-				& to_pma(pls(pls'left+1 to pls'right));
+				& to_pma_data(pls(pls'left+1 to pls'right));
 		end if;
-	end function;
+	end;
 
-	function to_pls_data(mac : mac_t) return pls_t is
+	function to_pma(pls : pls_t) return pma_t is
+		constant cd0 : pls_t := to_manchester('0');
+		constant cd1 : pls_t := to_manchester('1');
+		constant preamble : pls_t := repeat(cd1 & cd0, 27);
+		constant sfd : pls_t := repeat(cd1 & cd0, 3) & cd1 & cd1;
+		constant data : pls_t := to_pma_data(pls);
+		constant idl : pls_t := "1111";
+	begin
+		assert data'length = pls'length * 2;
+		return preamble & sfd & data & idl;
+	end;
+
+	function to_pls(mac : mac_t) return pls_t is
 	begin
 		assert mac'length <= 1500;
 		if mac'length = 0 then
@@ -80,19 +92,8 @@ package body vether is
 		else
 			-- LSB first
 			return reverse(mac(mac'left))
-				& to_pls_data(mac(mac'left+1 to mac'right));
+				& to_pls(mac(mac'left+1 to mac'right));
 		end if;
-	end;
-
-	function to_pls(mac : mac_t) return pls_t is
-		constant pls_preamble_and_sfd : pls_t := repeat("10", 62/2) & "11";
-		constant pls_data : pls_t := to_pls_data(mac);
-	begin
-		assert pls_preamble_and_sfd'length = 64
-			report "to_pls: pls_preamble_and_sfd has wrong length";
-		assert pls_data'length = mac'length * 8;
-			report "to_pls: pls_data has wrong length";
-		return pls_preamble_and_sfd & pls_data;
 	end;
 
 	function to_data(word : unsigned) return data_t is
@@ -129,10 +130,10 @@ package body vether is
 	end;
 
 	function to_mac(dst, src : mac_addr_t; data : data_t) return mac_t is
-		constant mac_without_fcs : mac_t := to_mac_without_fcs(dst, src, data);
+		constant mac_without_fcs : mac_t :=
+			to_mac_without_fcs(dst, src, data);
 	begin
-		assert mac_without_fcs'length = data'length + 14
-			report "to_mac: length check error";
+		assert mac_without_fcs'length = data'length + 14;
 		return mac_without_fcs & fcs(mac_without_fcs);
 	end;
 
@@ -163,8 +164,8 @@ architecture rtl of vether_tx is
 	signal idx : integer range pma'range := pma'left;
 begin
 	assert mac'length = data'length + 18 report "mac: length error";
-	assert pls'length = mac'length * 8 + 64 report "pls: length error";
-	assert pma'length = pls'length * 2 report "pma: length error";
+	assert pls'length = mac'length * 8 report "pls: length error";
+	assert pma'length = (pls'length + 66) * 2 report "pma: length error";
 	process(rst_ni, clk_i)
 	begin
 		if rst_ni = '0' then
