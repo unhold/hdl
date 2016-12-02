@@ -140,13 +140,17 @@ package body vether is
 end;
 
 
+library ieee;
+use ieee.std_logic_1164.all;
+
+library work;
 use work.vether.all;
 
 
 entity vether_tx is
 	port (
 		rst_ni : in bit := '1';
-		clk_i : in bit;
+		clk_i : in std_ulogic;
 		stb_i : in bit;
 		tx_po,
 		tx_no,
