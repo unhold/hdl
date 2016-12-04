@@ -2,31 +2,31 @@ library ieee;
 use ieee.numeric_bit.all;
 
 
--- Ethernet 10BASE-T
--- IEEE802.3-2008 clauses 3, 7
+--! Ethernet 10BASE-T,
+--! IEEE802.3-2008 clauses 3, 7.
 package vether is
 
 	subtype octet_t is bit_vector(7 downto 0);
 	type data_t is array(natural range <>) of octet_t;
 	subtype mac_addr_t is unsigned(47 downto 0);
 
-	-- word/data conversion, high byte first:
+	--- Word/data conversion, high byte first:
 	function to_data(word : unsigned) return data_t;
 	function to_word(data : data_t) return unsigned;
 
-	-- frame types of the sublayers:
-	subtype mac_t is data_t;     -- Media Access Control frame
-	subtype pls_t is bit_vector; -- Physical Layer Symbol frame
-	subtype pma_t is bit_vector; -- Physical Media Attachment frame
+	--- Frame types of the sublayers:
+	subtype mac_t is data_t;     --! Media Access Control frame
+	subtype pls_t is bit_vector; --! Physical Layer Symbol frame
+	subtype pma_t is bit_vector; --! Physical Media Attachment frame
 
-	-- encapsulate data into MAC frame, calculate FCS.
+	--! Encapsulate data into MAC frame, calculate FCS.
 	function to_mac(dst, src : mac_addr_t; data : data_t) return mac_t;
 
-	-- covert to PLS frame: serialize, add preamble, SFD and ETD.
+	--! Covert to PLS frame: serialize, add preamble, SFD and ETD.
 	function to_pls(mac : data_t) return pls_t;
 
-	-- convert to PMA frame: Manchester-encode.
-	-- can also be done with clock-XOR.
+	--! Convert to PMA frame: Manchester-encode.
+	--! Can also be done with clock-XOR.
 	function to_pma(pls : pls_t) return pma_t;
 
 end;
@@ -52,11 +52,15 @@ package body vether is
 		return result;
 	end;
 
-	function repeat(data : bit_vector; count : natural)
+	function repeat(data : bit_vector; count : positive)
 		return bit_vector is
 	begin
 		if count = 0 then
 			return "";
+		-- Could do without the elsif, directly in the else,
+		-- but this avoids warnings about the empty range.
+		elsif count = 1 then
+			return data;
 		else
 			return data & repeat(data, count-1);
 		end if;
@@ -66,6 +70,10 @@ package body vether is
 	begin
 		if pls'length = 0 then
 			return "";
+		-- Could do without the elsif, directly in the else,
+		-- but this avoids warnings about the empty range.
+		elsif pls'length = 1 then
+			return to_manchester(pls(pls'left));
 		else
 			return to_manchester(pls(pls'left))
 				& to_pma_data(pls(pls'left+1 to pls'right));
@@ -75,12 +83,15 @@ package body vether is
 	function to_pma(pls : pls_t) return pma_t is
 		constant cd0 : pls_t := to_manchester('0');
 		constant cd1 : pls_t := to_manchester('1');
-		constant preamble : pls_t := repeat(cd1 & cd0, 27);
+		constant preamble : pls_t := repeat(cd1 & cd0, 28);
 		constant sfd : pls_t := repeat(cd1 & cd0, 3) & cd1 & cd1;
 		constant data : pls_t := to_pma_data(pls);
 		constant idl : pls_t := "1111";
 	begin
+		assert preamble'length = 7 * 8 * 2;
+		assert sfd'length = 1 * 8 * 2;
 		assert data'length = pls'length * 2;
+		assert idl'length = 4;
 		return preamble & sfd & data & idl;
 	end;
 
@@ -89,6 +100,10 @@ package body vether is
 		assert mac'length <= 1500;
 		if mac'length = 0 then
 			return "";
+		-- Could do without the elsif, directly in the else,
+		-- but this avoids warnings about the empty range.
+		elsif mac'length = 1 then
+			return reverse(mac(mac'left));
 		else
 			-- LSB first
 			return reverse(mac(mac'left))
@@ -97,8 +112,14 @@ package body vether is
 	end;
 
 	function to_data(word : unsigned) return data_t is
+		constant empty_data : data_t(1 to 0) := (
+			others => (others => '0'));
 	begin
-		if word'length = 8 then
+		assert word'length mod 8 = 0
+			report "to_data: Word length must be multiple of 8.";
+		if word'length = 0 then
+			return empty_data;
+		elsif word'length = 8 then
 			return data_t'(0 => octet_t(word));
 		else
 			return to_data(word(word'high downto word'high-7)) &
@@ -125,7 +146,8 @@ package body vether is
 
 	function fcs(data : data_t) return mac_t is
 	begin
-		report "fcs: not implemented, returns 0";
+		report "fcs: Not implemented, always returns 0."
+			severity warning;
 		return to_data(to_unsigned(0, 32));
 	end;
 
@@ -144,36 +166,48 @@ library ieee;
 use ieee.std_logic_1164.all;
 
 library work;
+use work.rtl_pack.all;
 use work.vether.all;
 
 
 entity vether_tx is
+	generic (
+		clk_freq_g : natural);
 	port (
-		rst_ni : in bit := '1';
-		clk_i : in std_ulogic;
-		stb_i : in bit;
+		rst_i : in std_ulogic := '0';
+		clk_i,
+		stb_i : in std_ulogic;
 		tx_po,
 		tx_no,
-		run_o : out bit);
+		run_o : out std_ulogic);
 end;
 
 
 architecture rtl of vether_tx is
-	constant addr : mac_addr_t := x"010203040506";
+
+	constant addr : mac_addr_t := x"123456789abc";
 	constant data : data_t := to_data(addr);
 	constant mac : mac_t := to_mac(addr, addr, data);
 	constant pls : pls_t := to_pls(mac);
 	constant pma : pma_t := to_pma(pls);
-	signal run : bit := '1';
+
+	signal run : std_ulogic := '0';
 	signal idx : integer range pma'range := pma'left;
+	signal lp_stb, lp : std_ulogic;
+
 begin
-	assert mac'length = data'length + 18 report "mac: length error";
-	assert pls'length = mac'length * 8 report "pls: length error";
-	assert pma'length = (pls'length + 66) * 2 report "pma: length error";
-	process(rst_ni, clk_i)
+
+	assert mac'length = 18 + data'length
+		report "mac: Length error.";
+	assert pls'length = mac'length * 8
+		report "pls: Length error.";
+	assert pma'length = 128 + pls'length * 2 + 4
+		report "pma: Length error.";
+
+	process(rst_i, clk_i)
 	begin
-		if rst_ni = '0' then
-			run <= '1';
+		if rst_i = '1' then
+			run <= '0';
 			idx <= pma'left;
 			tx_po <= '0';
 			tx_no <= '0';
@@ -187,12 +221,39 @@ begin
 				else
 					idx <= idx + 1;
 				end if;
-				tx_po <= pma(idx);
-				tx_no <= not pma(idx);
+				tx_po <= to_stdulogic(pma(idx));
+				tx_no <= to_stdulogic(not pma(idx));
 			elsif stb_i = '1' then
 				run <= '1';
+			elsif lp = '1' then
+				tx_po <= '1';
+				tx_no <= '0';
+			else
+				tx_po <= '0';
+				tx_no <= '0';
 			end if;
 		end if;
 	end process;
+
+	lp_stb_gen : entity work.stb_gen
+	generic map (
+		period_g => clk_freq_g * 16 ms / 1 sec)
+	port map (
+		rst_i => rst_i,
+		clk_i => clk_i,
+		sync_rst_i => run,
+		stb_o => lp_stb);
+
+	lp_gen : entity work.pulse_gen
+	generic map (
+		duration_g => 2)
+	port map (
+		rst_i => rst_i,
+		clk_i => clk_i,
+		stb_i => lp_stb,
+		pulse_o => lp);
+
 	run_o <= run;
+
 end;
+
