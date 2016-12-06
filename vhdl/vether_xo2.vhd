@@ -25,8 +25,7 @@ begin
 		nom_freq => "20.46")
 	port map (
 		stdby => '0',
-		osc => clk,
-		sedstdby => open);
+		osc => clk);
 
 	stb_gen : entity work.stb_gen
 	generic map (

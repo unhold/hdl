@@ -1,3 +1,6 @@
+library work;
+use work.rtl_pack.all;
+
 library std;
 use std.textio.all;
 

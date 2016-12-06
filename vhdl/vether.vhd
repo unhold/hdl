@@ -23,7 +23,7 @@ package vether is
 	function to_mac(dst, src : mac_addr_t; data : data_t) return mac_t;
 
 	--! Covert to PLS frame: serialize, add preamble, SFD and ETD.
-	function to_pls(mac : data_t) return pls_t;
+	function to_pls(mac : mac_t) return pls_t;
 
 	--! Convert to PMA frame: Manchester-encode.
 	--! Can also be done with clock-XOR.
@@ -191,7 +191,7 @@ architecture rtl of vether_tx is
 	constant pls : pls_t := to_pls(mac);
 	constant pma : pma_t := to_pma(pls);
 
-	signal run : std_ulogic := '0';
+	signal run : std_ulogic := '1';
 	signal idx : integer range pma'range := pma'left;
 	signal lp_stb, lp : std_ulogic;
 
@@ -207,24 +207,23 @@ begin
 	process(rst_i, clk_i)
 	begin
 		if rst_i = '1' then
-			run <= '0';
+			run <= '1';
 			idx <= pma'left;
 			tx_po <= '0';
 			tx_no <= '0';
 		elsif rising_edge(clk_i) then
-			if run = '1' then
+			if run = '1' or stb_i = '1' then
 				if idx = pma'right then
 					run <= '0';
 					idx <= pma'left;
 					tx_po <= '0';
 					tx_no <= '0';
 				else
+					run <= '1';
 					idx <= idx + 1;
 				end if;
 				tx_po <= to_stdulogic(pma(idx));
 				tx_no <= to_stdulogic(not pma(idx));
-			elsif stb_i = '1' then
-				run <= '1';
 			elsif lp = '1' then
 				tx_po <= '1';
 				tx_no <= '0';
@@ -237,7 +236,7 @@ begin
 
 	lp_stb_gen : entity work.stb_gen
 	generic map (
-		period_g => clk_freq_g * 16 ms / 1 sec)
+		period_g => clk_freq_g * 16 / 1000)
 	port map (
 		rst_i => rst_i,
 		clk_i => clk_i,
