@@ -29,6 +29,12 @@ package vether is
 	--! Can also be done with clock-XOR.
 	function to_pma(pls : pls_t) return pma_t;
 
+	constant addr : mac_addr_t := x"123456789ABC";
+	constant data : data_t;
+	constant mac : mac_t;
+	constant pls : pls_t;
+	constant pma : pma_t;
+
 end;
 
 
@@ -158,6 +164,11 @@ package body vether is
 		assert mac_without_fcs'length = data'length + 14;
 		return mac_without_fcs & fcs(mac_without_fcs);
 	end;
+	
+	constant data : data_t := to_data(addr);
+	constant mac : mac_t := to_mac(addr, addr, data);
+	constant pls : pls_t := to_pls(mac);
+	constant pma : pma_t := to_pma(pls);
 
 end;
 
@@ -184,12 +195,6 @@ end;
 
 
 architecture rtl of vether_tx is
-
-	constant addr : mac_addr_t := x"123456789abc";
-	constant data : data_t := to_data(addr);
-	constant mac : mac_t := to_mac(addr, addr, data);
-	constant pls : pls_t := to_pls(mac);
-	constant pma : pma_t := to_pma(pls);
 
 	signal run : std_ulogic := '1';
 	signal idx : integer range pma'range := pma'left;
