@@ -17,7 +17,7 @@ architecture tbd of vether_tb is
 
 	constant clk_freq : natural := 20_460e3;
 	signal clk : std_ulogic := '0';
-	signal stb, run : std_ulogic;
+	signal stb, run, tx_p, tx_n : std_ulogic;
 
 begin
 
@@ -36,10 +36,20 @@ begin
 	port map (
 		clk_i => clk,
 		stb_i => stb,
-		tx_po => tx_po,
-		tx_no => tx_no,
+		tx_po => tx_p,
+		tx_no => tx_n,
 		run_o => run);
 
-	led_no <= not ("000000" & stb & run);
+	run_pulse_gen : entity work.pulse_gen
+	generic map (
+		duration_g => clk_freq/10) -- 100 ms
+	port map (
+		clk_i => clk,
+		stb_i => run,
+		pulse_o => run_pulse);
+
+	led_no <= not ("00000" tx_p & tx_n & run_pulse);
+	tx_po <= tx_p;
+	tx_no <= tx_n;
 
 end;
