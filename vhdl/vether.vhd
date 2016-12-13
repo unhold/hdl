@@ -10,6 +10,8 @@ package vether is
 	type data_t is array(natural range <>) of octet_t;
 	subtype mac_addr_t is unsigned(47 downto 0);
 
+	function repeat(data : data_t; count : positive) return data_t;
+
 	--- Word/data conversion, high byte first:
 	function to_data(word : unsigned) return data_t;
 	function to_word(data : data_t) return unsigned;
@@ -28,12 +30,6 @@ package vether is
 	--! Convert to PMA frame: Manchester-encode.
 	--! Can also be done with clock-XOR.
 	function to_pma(pls : pls_t) return pma_t;
-
-	constant addr : mac_addr_t := x"123456789ABC";
-	constant data : data_t;
-	constant mac : mac_t;
-	constant pls : pls_t;
-	constant pma : pma_t;
 
 end;
 
@@ -61,11 +57,16 @@ package body vether is
 	function repeat(data : bit_vector; count : positive)
 		return bit_vector is
 	begin
-		if count = 0 then
-			return "";
-		-- Could do without the elsif, directly in the else,
-		-- but this avoids warnings about the empty range.
-		elsif count = 1 then
+		if count = 1 then
+			return data;
+		else
+			return data & repeat(data, count-1);
+		end if;
+	end;
+
+	function repeat(data : data_t; count : positive) return data_t is
+	begin
+		if count = 1 then
 			return data;
 		else
 			return data & repeat(data, count-1);
@@ -164,11 +165,6 @@ package body vether is
 		assert mac_without_fcs'length = data'length + 14;
 		return mac_without_fcs & fcs(mac_without_fcs);
 	end;
-	
-	constant data : data_t := to_data(addr);
-	constant mac : mac_t := to_mac(addr, addr, data);
-	constant pls : pls_t := to_pls(mac);
-	constant pma : pma_t := to_pma(pls);
 
 end;
 
@@ -195,6 +191,12 @@ end;
 
 
 architecture rtl of vether_tx is
+
+	constant addr : mac_addr_t := x"123456789ABC";
+	constant data : data_t := repeat(to_data(addr), 8);
+	constant mac : mac_t := to_mac(addr, addr, data);
+	constant pls : pls_t := to_pls(mac);
+	constant pma : pma_t := to_pma(pls);
 
 	signal run : std_ulogic := '1';
 	signal idx : integer range pma'range := pma'left;
