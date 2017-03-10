@@ -34,9 +34,35 @@ architecture tbd of vether_tb is
 	signal clk : std_ulogic := '0';
 	signal stb, run, tx_p, tx_n, run_pulse : std_ulogic;
 
+	constant ref_frame : mac_t := (
+		x"00", x"10", x"A4", x"7B", x"EA", x"80", -- dst
+		x"00", x"12", x"34", x"56", x"78", x"90", -- src
+		x"08", x"00", -- ethertype
+		x"45", x"00", x"00", x"2E", x"B3", x"FE", x"00",
+		x"00", x"80", x"11", x"05", x"40", x"C0", x"A8", x"00", x"2C",
+		x"C0", x"A8", x"00", x"04", x"04", x"00", x"04", x"00", x"00",
+		x"1A", x"2D", x"E8", x"00", x"01", x"02", x"03", x"04", x"05",
+		x"06", x"07", x"08", x"09", x"0A", x"0B", x"0C", x"0D", x"0E",
+		x"0F", x"10", x"11", -- data
+		x"B3", x"31", x"88", x"1B"); -- fcs
+
+	constant gen_frame : mac_t := to_mac(x"0010A47BEA80", x"001234567890", (
+		x"45", x"00", x"00", x"2E", x"B3", x"FE", x"00",
+		x"00", x"80", x"11", x"05", x"40", x"C0", x"A8", x"00", x"2C",
+		x"C0", x"A8", x"00", x"04", x"04", x"00", x"04", x"00", x"00",
+		x"1A", x"2D", x"E8", x"00", x"01", x"02", x"03", x"04", x"05",
+		x"06", x"07", x"08", x"09", x"0A", x"0B", x"0C", x"0D", x"0E",
+		x"0F", x"10", x"11"));
+
 begin
 
-	write("mac.dat", data_t(mac));
+	process
+	begin
+		write("ref_frame.dat", ref_frame);
+		write("gen_frame.dat", gen_frame);
+		assert ref_frame = gen_frame report "frame mismatch";
+		wait;
+	end process;
 
 	clk_gen(clk, true, clk_freq);
 
