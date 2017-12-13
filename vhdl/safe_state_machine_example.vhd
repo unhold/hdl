@@ -10,7 +10,7 @@ entity safe_state_machine_example is
 		encoding : encoding_t);
 	port (
 		clock_i : in std_logic;
-		reset_i : in std_logic := '0'; -- Default value indicates that this unit can work without initial reset, for FPGA designs.
+		reset_i : in std_logic := '0'; -- Asynchronous reset, default value indicates that this unit can work without initial reset, for FPGA designs.
 		enable_i : in std_logic := '1'; -- Clock enable, may be used to divide the clock.
 		error_o : out std_logic;
 		state_inject_i : in inject_t := inject_off_c);
@@ -36,9 +36,10 @@ architecture rtl of safe_state_machine_example is
 	-- will also avoid optimizations and preserve the state encoding.
 	signal state, next_state : state_t := reset_state_c;
 		-- Initial value required for FPGA designs without reset.
+
+	-- Disable sequential optimizations for Synopsys and Synplicity.
 	attribute syn_preserve : boolean;
 	attribute syn_preserve of state : signal is true;
-		-- Disable sequential optimizations for Synopsys and Synplicity.
 
 begin
 
@@ -53,7 +54,7 @@ begin
 		end if;
 	end process;
 
-	process(state)
+	process(state, state_inject_i)
 		variable my_enum_v, next_my_enum_v : my_enum_t;
 	begin
 
