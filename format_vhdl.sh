@@ -21,6 +21,6 @@ do
 	done
 
 	# collapse inline whitespace indentation
-	sed -i "s/  / /g" "$file"
+	#sed -i "s/  / /g" "$file"
 
 done

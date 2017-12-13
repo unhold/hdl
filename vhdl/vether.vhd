@@ -6,7 +6,7 @@ use ieee.numeric_bit.all;
 --! IEEE802.3-2008 clauses 3, 7.
 package vether is
 
-	subtype octet_t is bit_vector(7 downto 0);
+	subtype octet_t is unsigned(7 downto 0);
 	type data_t is array(natural range <>) of octet_t;
 	subtype mac_addr_t is unsigned(47 downto 0);
 
@@ -18,18 +18,32 @@ package vether is
 
 	--- Frame types of the sublayers:
 	subtype mac_t is data_t;     --! Media Access Control frame
+		--! TODO: change to record?
 	subtype pls_t is bit_vector; --! Physical Layer Symbol frame
 	subtype pma_t is bit_vector; --! Physical Media Attachment frame
 
 	--! Encapsulate data into MAC frame, calculate FCS.
 	function to_mac(dst, src : mac_addr_t; data : data_t) return mac_t;
+		--! TODO: add padding?
+		--! TODO: add ethertype I/II options
 
 	--! Covert to PLS frame: serialize, add preamble, SFD and ETD.
 	function to_pls(mac : mac_t) return pls_t;
 
 	--! Convert to PMA frame: Manchester-encode.
-	--! Can also be done with clock-XOR.
+	--! May also be done with clock-XOR.
 	function to_pma(pls : pls_t) return pma_t;
+
+	constant crc32_polynomial : unsigned(31 downto 0) := (
+		26 => '1', 23 => '1', 22 => '1', 16 => '1', 12 => '1',
+		11 => '1', 10 => '1',  8 => '1',  7 => '1',  5 => '1',
+		 4 => '1',  2 => '1',  1 => '1',  0 => '1', others => '0');
+
+	constant addr : mac_addr_t := x"123456789ABC";
+	constant data : data_t;
+	constant mac : mac_t;
+	constant pls : pls_t;
+	constant pma : pma_t;
 
 end;
 
@@ -108,29 +122,26 @@ package body vether is
 		if mac'length = 0 then
 			return "";
 		-- Could do without the elsif, directly in the else,
-		-- but this avoids warnings about the empty range.
+		-- but it avoids warnings about the empty range.
 		elsif mac'length = 1 then
-			return reverse(mac(mac'left));
+			return reverse(bit_vector(mac(mac'left)));
 		else
 			-- LSB first
-			return reverse(mac(mac'left))
+			return reverse(bit_vector(mac(mac'left)))
 				& to_pls(mac(mac'left+1 to mac'right));
 		end if;
 	end;
 
 	function to_data(word : unsigned) return data_t is
-		constant empty_data : data_t(1 to 0) := (
-			others => (others => '0'));
+		constant desc : unsigned(word'high downto word'low) := word;
 	begin
-		assert word'length mod 8 = 0
+		assert desc'length mod 8 = 0
 			report "to_data: Word length must be multiple of 8.";
-		if word'length = 0 then
-			return empty_data;
-		elsif word'length = 8 then
-			return data_t'(0 => octet_t(word));
+		if desc'length = 8 then
+			return data_t'(0 => octet_t(desc));
 		else
-			return to_data(word(word'high downto word'high-7)) &
-				to_data(word(word'high-8 downto word'low));
+			return to_data(desc(desc'high downto desc'high-7)) &
+				to_data(desc(desc'high-8 downto desc'low));
 		end if;
 	end;
 
@@ -144,27 +155,49 @@ package body vether is
 		end if;
 	end;
 
-	function to_mac_without_fcs(dst, src : mac_addr_t; data : data_t)
-		return mac_t is
+	function fcs(pls : pls_t) return pls_t is
+		variable crc : pls_t(31 downto 0) := (others => '1');
+		variable msb : bit;
 	begin
-		return to_data(dst) & to_data(src)
-			& to_data(to_unsigned(data'length, 16)) & data;
+		for i in pls'range loop
+			msb := crc(31);
+			crc := crc(30 downto 0) & '0';
+			if (pls(i) xor msb) = '1' then
+				crc := crc xor pls_t(crc32_polynomial);
+			end if;
+		end loop;
+		return not crc;
 	end;
 
-	function fcs(data : data_t) return mac_t is
+	function fcs(mac_without_fcs : mac_t) return mac_t is
+		constant crc : pls_t(31 downto 0) :=
+			fcs(to_pls(frame_without_fcs));
 	begin
-		report "fcs: Not implemented, always returns 0."
-			severity warning;
-		return to_data(to_unsigned(0, 32));
+		-- FCS is sent out MSB first, as opposed to all other data,
+		-- so bit-reverse it on byte level.
+		return data_t'(
+			0 => octet_t(reverse(crc(31 downto 24))),
+			1 => octet_t(reverse(crc(23 downto 16))),
+			2 => octet_t(reverse(crc(15 downto  8))),
+			3 => octet_t(reverse(crc( 7 downto  0))));
 	end;
 
 	function to_mac(dst, src : mac_addr_t; data : data_t) return mac_t is
 		constant mac_without_fcs : mac_t :=
-			to_mac_without_fcs(dst, src, data);
+			to_data(dst) &
+			to_data(src) &
+			--to_data(to_unsigned(data'length, 16)) &
+			--	-- Ethernet Type I
+			to_data(x"0800") & -- Ethernet Type II
+			data;
 	begin
-		assert mac_without_fcs'length = data'length + 14;
 		return mac_without_fcs & fcs(mac_without_fcs);
 	end;
+
+	constant data : data_t := to_data(addr);
+	constant mac : mac_t := to_mac(addr, addr, data);
+	constant pls : pls_t := to_pls(mac);
+	constant pma : pma_t := to_pma(pls);
 
 end;
 
