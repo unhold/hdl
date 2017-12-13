@@ -144,8 +144,9 @@ package body codec_8b10b_pack is
 		3 => (0 => "1100", 1 => "0011"),
 		4 => (0 => "1101", 1 => "0010"),
 		5 => (0 => "1010", 1 => "1010"),
-		6 => (0 => "0110", 1 => "0110"));
-		-- 7 is a special case
+		6 => (0 => "0110", 1 => "0110"),
+		-- 7 is a special case, handle in code
+		6 => (0 => "XXXX", 1 => "XXXX"));
 
 	procedure data_3b4b(
 		b3_i : in b3_t;

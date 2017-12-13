@@ -20,6 +20,12 @@ package rtl_pack is
 	--! Count the number of '1's in a vector.
 	function one_count(vector : std_ulogic_vector) return natural;
 
+	--! Check constant conditions in declarative sections.
+	function check(
+		condition : boolean;
+		message : string := "";
+		sl : severity_level := error) return boolean;
+
 end;
 
 package body rtl_pack is
@@ -78,6 +84,15 @@ package body rtl_pack is
 			end if;
 		end loop;
 		return result;
+	end;
+	
+	function check(
+		condition : boolean;
+		message : string := "";
+		sl : severity_level := error) return boolean is
+	begin
+		assert condition report message severity sl;
+		return condition;
 	end;
 
 end;
