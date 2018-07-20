@@ -14,7 +14,7 @@ package rtl_pack is
 	--! Round 'number' up to the next multiple of 'factor'.
 	function next_multiple(number : natural; factor : positive) return natural;
 
-	--! Revese the bit-order of a vector. Range stays the same.
+	--! Revese the bit-order of a vector. Direction stays the same.
 	function bit_reverse(vector : std_ulogic_vector) return std_ulogic_vector;
 
 	--! Count the number of '1's in a vector.

@@ -38,7 +38,6 @@ package state_pack is
 
 end;
 
--- Don't read the boring package body, skip to the example below!
 package body state_pack is
 
 	function code_length(length : natural; encoding : encoding_t) return natural is
