@@ -1,4 +1,4 @@
--- Demonstration of a_i functional FSMD coding style.
+-- Demonstration of a functional FSMD coding style.
 entity function_fsmd is
 	port(
 		clk_i,
