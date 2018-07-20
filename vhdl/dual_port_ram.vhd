@@ -14,6 +14,7 @@ entity dual_port_ram is
 		a_data_i : in std_ulogic_vector(data_width_g-1 downto 0);
 		a_read_i : in std_ulogic := '0';
 		a_data_o : out std_ulogic_vector(data_width_g-1 downto 0);
+
 		b_clock_i : in std_ulogic := '0';
 		b_address_i : in std_ulogic_vector(address_width_g-1 downto 0) := (others => 'X');
 		b_write_i : in std_ulogic := '0';

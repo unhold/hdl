@@ -5,7 +5,7 @@ package greycode is
 	subtype greycode_t is std_ulogic_vector;
 	function to_greycode(binary : std_ulogic_vector) return greycode_t;
 	function to_binary(greycode : greycode_t) return std_ulogic_vector;
-	function increment(greycode : greycode_t) return greycode_t;
+	function "+"(lhs : greycode_t; rhs : integer) return greycode_t;
 end;
 
 library ieee;
@@ -30,8 +30,8 @@ package body greycode is
 		end loop;
 		return binary;
 	end;
-	function increment(greycode : greycode_t) return greycode_t is
+	function "+"(lhs : greycode_t; rhs : integer) return greycode_t is
 	begin
-		return to_greycode(to_binary(std_ulogic_vector(unsigned(greycode) + 1)));
+		return to_greycode(std_ulogic_vector(unsigned(to_binary(lhs)) + rhs));
 	end;
 end;

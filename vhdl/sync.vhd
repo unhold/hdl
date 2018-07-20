@@ -15,7 +15,7 @@ end;
 
 architecture rtl of sync is
 	type sync_t is array(stages_g-2 downto 0) of std_ulogic_vector(width_g-1 downto 0);
-	sync_r : sync_t := (others => (others => reset_value_g));
+	signal sync_r : sync_t := (others => (others => reset_value_g));
 begin
 	process(reset_i, clock_i)
 	begin

@@ -26,6 +26,9 @@ package rtl_pack is
 		message : string := "";
 		sl : severity_level := error) return boolean;
 
+	function maximum(a, b : integer) return integer;
+	function minimum(a, b : integer) return integer;
+
 end;
 
 package body rtl_pack is
@@ -85,7 +88,7 @@ package body rtl_pack is
 		end loop;
 		return result;
 	end;
-	
+
 	function check(
 		condition : boolean;
 		message : string := "";
@@ -93,6 +96,20 @@ package body rtl_pack is
 	begin
 		assert condition report message severity sl;
 		return condition;
+	end;
+
+	function maximum(a, b : integer) return integer is
+	begin
+		if a > b then return a;
+		else return b;
+		end if;
+	end;
+
+	function minimum(a, b : integer) return integer is
+	begin
+		if a < b then return a;
+		else return b;
+		end if;
 	end;
 
 end;
