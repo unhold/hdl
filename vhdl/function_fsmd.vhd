@@ -7,7 +7,6 @@ entity function_fsmd is
 		x_o, y_o : out bit);
 end;
 
-
 architecture rtl of function_fsmd is
 
 	type seq_t is (idle, start, run);

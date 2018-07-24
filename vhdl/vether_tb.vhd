@@ -9,14 +9,12 @@ library work;
 use work.tb_pack.all;
 use work.vether.all;
 
-
 entity vether_tb is
 	port (
 		tx_po,
 		tx_no : out std_ulogic;
 		led_no : out std_ulogic_vector(7 downto 0));
 end;
-
 
 architecture tbd of vether_tb is
 
@@ -25,7 +23,7 @@ architecture tbd of vether_tb is
 		variable l : line;
 	begin
 		for i in data'range loop
-			write(l, to_hstring(unsigned(data(i))));
+			write(l, to_hstring(data(i)));
 			writeline(f, l);
 		end loop;
 	end;

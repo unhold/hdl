@@ -2,7 +2,6 @@ library ieee;
 use ieee.std_logic_1164.all;
 use ieee.numeric_std.all;
 
-
 package codec_8b10b_pack is
 
 	subtype b8_t is std_ulogic_vector(7 downto 0);
@@ -17,7 +16,6 @@ package codec_8b10b_pack is
 		rd_o : out rd_t);
 
 end;
-
 
 package body codec_8b10b_pack is
 
@@ -108,7 +106,7 @@ package body codec_8b10b_pack is
 		rd_i : in rd_t;
 		b6_o : out b6_t;
 		rd_o : out rd_t) is
- variable b6 : b6_t;
+			variable b6 : b6_t;
 	begin
 		case rd_i is
 			when minus1 => b6 := table_5b6b(to_integer(unsigned(b5_i)))(0);
@@ -135,7 +133,7 @@ package body codec_8b10b_pack is
 	subtype b3_t is std_ulogic_vector(2 downto 0);
 	subtype b4_t is std_ulogic_vector(3 downto 0);
 	type code_3b4b_t is array(0 to 1) of b4_t;
-	type table_3b4b_t is array(0 to 6) of code_3b4b_t;
+	type table_3b4b_t is array(0 to 7) of code_3b4b_t;
 
 	constant table_3b4b : table_3b4b_t := (
 		0 => (0 => "1011", 1 => "0100"),
@@ -146,7 +144,7 @@ package body codec_8b10b_pack is
 		5 => (0 => "1010", 1 => "1010"),
 		6 => (0 => "0110", 1 => "0110"),
 		-- 7 is a special case, handle in code
-		6 => (0 => "XXXX", 1 => "XXXX"));
+		7 => (0 => "XXXX", 1 => "XXXX"));
 
 	procedure data_3b4b(
 		b3_i : in b3_t;
@@ -154,7 +152,7 @@ package body codec_8b10b_pack is
 		rd_i : in rd_t;
 		b4_o : out b4_t;
 		rd_o : out rd_t) is
- variable b4 : b4_t;
+			variable b4 : b4_t;
 	begin
 		b4 := (others => 'X');
 		if not is_x(b3_i) then

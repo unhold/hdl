@@ -93,10 +93,10 @@ library work;
 use work.state_pack.all;
 use work.tb_pack.all;
 
-entity safe_state_machine_example_check is
+entity safe_state_machine_example_tb is
 end;
 
-architecture bhv of safe_state_machine_example_check is
+architecture bhv of safe_state_machine_example_tb is
 
 	signal run : boolean := true;
 	signal clock_i : std_ulogic;
@@ -133,7 +133,7 @@ begin
 		state_inject_i <= inject_off_c;
 		wait_clk(clock_i, 1);
 
-		wait_clk(clock_i, 5);		
+		wait_clk(clock_i, 5);
 		run <= false;
 		wait;
 	end process;

@@ -1,7 +1,6 @@
 library ieee;
 use ieee.std_logic_1164.all;
 
-
 entity clk_div is
 	generic (
 		period_g : in positive);

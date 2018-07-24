@@ -1,7 +1,6 @@
 library ieee;
 use ieee.std_logic_1164.all;
 
-
 entity stb_gen is
 	generic (
 		period_g : in positive);
@@ -12,7 +11,6 @@ entity stb_gen is
 		stb_i : in std_ulogic := '1';
 		stb_o : out std_ulogic);
 end;
-
 
 architecture rtl of stb_gen is
 	signal stb : std_ulogic := '0';

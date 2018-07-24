@@ -4,14 +4,12 @@ use ieee.std_logic_1164.all;
 library machxo2;
 use machxo2.components;
 
-
 entity vether_xo2 is
 	port (
 		tx_po,
 		tx_no : out std_ulogic;
 		led_no : out std_ulogic_vector(7 downto 0));
 end;
-
 
 architecture tbd of vether_xo2 is
 

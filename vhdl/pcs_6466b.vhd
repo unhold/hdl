@@ -107,50 +107,6 @@ end;
 library ieee;
 use ieee.std_logic_1164.all;
 
-entity gearbox is
-	generic (
-		a_width_g : positive;
-		b_width_g : positive);
-	port (
-		a_clock_i : in std_ulogic;
-		a_data_i : in std_ulogic_vector(a_width_g-1 downto 0);
-		b_clock_i : in std_ulogic;
-		b_data_o : out std_ulogic_vector(b_width_g-1 downto 0));
-end;
-
-architecture bhv of gearbox is
-
-	data_r : std_ulogic_vector(2*a_width_g-1 downto 0) := 'X';
-	a_index_r : integer := 0;
-	b_index_r : integer := a_width_g;
-	
-	function write_ring(ring, data : std_ulogic_vector; index : integer) return std_ulogic_vector is
-	begin
-		if index + data'length > ring'length then
-			ring(index to ring'right) := data(0 to ring'right - index);
-			ring(0 to data'right - ring'length - index) := data(ring'length - index to data'right);
-		else
-			ring(index to index + data'right) := data;
-		end if;
-	end if;
-
-begin
-	assert a_width_g > b_width_g; -- for now...
-
-	process(a_clock_i)
-	begin
-		if rising_edge(a_clock_i) then
-			a_index_r := (a_index_r + a_data_i'length) mod data_r'length;
-			data_r(
-		end if;
-	end;
-
-end;
-
-
-library ieee;
-use ieee.std_logic_1164.all;
-
 library work;
 use work.ethernet_10g.all;
 
@@ -236,13 +192,52 @@ architecture rtl of pcs_6466b_tx is
 	begin
 		return not is_x(to_ocode(octet));
 	end;
+	
+	function to_string(octet : octet_t; control : std_ulogic) return string is
+	begin
+		if control = '1' then
+			if octet = xgmiid_start_c then
+				return "S";
+			elsif octet = xgmiid_terminate_c then
+				return "T";
+			elsif is_ccode(octet) then
+				return "C";
+			elsif is_ocode(octet) then
+				return "O";
+			else
+				return "X";
+			end if;
+		elsif control = '0' then
+			return "D";
+		else
+			return "X";
+		end if;
+	end;
+
+	function to_string(octets : octet_vec_t; control : std_ulogic_vector; from_index : natural := 0) return string is
+	begin
+		if from_index > octets'high then
+			return "";
+		else
+			return to_string(octets(from_index), control(from_index)) & integer'image(from_index) & " " & to_string(
+				octets, control, from_index+1);
+		end if;
+	end;
+
+	function to_string(first_i, second_i : in xgmii_t) return string is
+		constant data : std_ulogic_vector := first_i.data & second_i.data;
+		constant control : std_ulogic_vector := first_i.control & second_i.control;
+		constant octets : octet_vec_t := to_octet(data);
+	begin
+		return to_string(octets, control);
+	end;	
 
 	-- Encode according to Figure 49–7 -- 64B/66B block formats
 	function encode_6466b(first_i, second_i : in xgmii_t) return std_ulogic_vector is
 		constant data : std_ulogic_vector := first_i.data & second_i.data;
 		constant control : std_ulogic_vector := first_i.control & second_i.control;
 		constant octets : octet_vec_t := to_octet(data);
-		variable pl : std_ulogic_vector(63 downto 0); -- payload
+		variable pl : std_ulogic_vector(63 downto 0) := (others => '-'); -- payload
 	begin
 		case control is
 			when "00000000" => -- D0 D1 D2 D3/D4 D5 D6 D7
@@ -301,47 +296,8 @@ architecture rtl of pcs_6466b_tx is
 				end if;
 			when others => null;
 		end case;
-		assert not is_x(pl) report "encode_6466b: invalid input data block format" severity warning;
+		assert not is_x(pl) report "encode_6466b: invalid input data block format " & to_string(first_i, second_i) severity warning;
 		return "10" & pl;
-	end;
-
-	function to_string(octet : octet_t; control : std_ulogic) return string is
-	begin
-		if control = '1' then
-			if octet = xgmiid_start_c then
-				return "S";
-			elsif octet = xgmiid_terminate_c then
-				return "T";
-			elsif is_ccode(octet) then
-				return "C";
-			elsif is_ocode(octet) then
-				return "O";
-			else
-				return "X";
-			end if;
-		elsif control = '0' then
-			return "D";
-		else
-			return "X";
-		end if;
-	end;
-
-	function to_string(octets : octet_vec_t; control : std_ulogic_vector; from_index : natural := 0) return string is
-	begin
-		if from_index > octets'high then
-			return "";
-		else
-			return to_string(octets(from_index), control(from_index)) & integer'image(from_index) & " " & to_string(
-				octets, control, from_index+1);
-		end if;
-	end;
-
-	function to_string(first_i, second_i : in xgmii_t) return string is
-		constant data : std_ulogic_vector := first_i.data & second_i.data;
-		constant control : std_ulogic_vector := first_i.control & second_i.control;
-		constant octets : octet_vec_t := to_octet(data);
-	begin
-		return to_string(octets, control);
 	end;
 
 	signal last_xgmii_r : xgmii_t := xgmii_idle_c;
@@ -402,7 +358,8 @@ begin
 	gearbox : entity work.gearbox
 		generic map (
 			a_width_g => 33,
-			b_width_g => 16)
+			b_width_g => 16,
+			fifo_depth_order_g => 4)
 		port map (
 			a_clock_i => xgmii_i.clock,
 			a_data_i => demux_data,

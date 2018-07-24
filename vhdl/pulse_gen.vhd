@@ -1,7 +1,6 @@
 library ieee;
 use ieee.std_logic_1164.all;
 
-
 entity pulse_gen is
 	generic (
 		duration_g : positive);
@@ -11,7 +10,6 @@ entity pulse_gen is
 		stb_i : in std_ulogic;
 		pulse_o : out std_ulogic);
 end;
-
 
 architecture rtl of pulse_gen is
 	signal pulse : std_ulogic := '0';

@@ -15,7 +15,6 @@ entity medvedev is
 
 end;
 
-
 architecture rtl of medvedev is
 
 	signal state : state_t;
@@ -35,14 +34,12 @@ begin
 
 end;
 
-
 entity medvedev_user is
 	port (
 		signal clk_i, reset_i : in bit;
 		signal a_i, b_i : in bit;
 		signal x_o, y_o, z_o : out bit);
 end;
-
 
 architecture rtl of medvedev_user is
 

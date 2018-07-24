@@ -1,7 +1,6 @@
 library ieee;
 use ieee.numeric_bit.all;
 
-
 --! Ethernet 10BASE-T,
 --! IEEE802.3-2008 clauses 3, 7.
 package vether is
@@ -46,7 +45,6 @@ package vether is
 	constant pma : pma_t;
 
 end;
-
 
 package body vether is
 
@@ -171,7 +169,7 @@ package body vether is
 
 	function fcs(mac_without_fcs : mac_t) return mac_t is
 		constant crc : pls_t(31 downto 0) :=
-			fcs(to_pls(frame_without_fcs));
+			fcs(to_pls(mac_without_fcs));
 	begin
 		-- FCS is sent out MSB first, as opposed to all other data,
 		-- so bit-reverse it on byte level.
@@ -209,7 +207,6 @@ library work;
 use work.rtl_pack.all;
 use work.vether.all;
 
-
 entity vether_tx is
 	generic (
 		clk_freq_g : natural);
@@ -221,7 +218,6 @@ entity vether_tx is
 		tx_no,
 		run_o : out std_ulogic);
 end;
-
 
 architecture rtl of vether_tx is
 

@@ -18,7 +18,6 @@ entity function_pipeline is
 
 end;
 
-
 architecture output_pipeline of function_pipeline is
 
 	type pipeline_t is array(stages_c-1 downto 0) of datao_t;
