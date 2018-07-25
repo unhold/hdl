@@ -35,11 +35,11 @@ package tb_pack is
 	--! Wait for 'count' clock ticks.
 	procedure wait_clk(signal clk : in std_ulogic; count : in natural := 1);
 
-	--! Wait until 'condition' is true.
-	procedure wait_clk(signal clk : in std_ulogic; signal condition : in boolean);
+	--! Wait until 'condition' xor invert is true.
+	procedure wait_clk(signal clk : in std_ulogic; signal condition : in boolean; invert : boolean := false);
 
-	--! Wait until 'condition' is '1' or 'H'.
-	procedure wait_clk(signal clk : in std_ulogic; signal condition : in std_ulogic);
+	--! Wait until 'condition' is '1'/'H' (or '0'/'L' if invert is true).
+	procedure wait_clk(signal clk : in std_ulogic; signal condition : in std_ulogic; invert : boolean := false);
 
 end;
 
@@ -100,14 +100,16 @@ package body tb_pack is
 		end if;
 	end;
 
-	procedure wait_clk(signal clk : in std_ulogic; signal condition : in boolean) is
+	procedure wait_clk(signal clk : in std_ulogic; signal condition : in boolean; invert : boolean := false) is
 	begin
-		wait until rising_edge(clk) and condition;
+		-- useless parenthesis for readability, VHDL has = before and
+		wait until rising_edge(clk) and (condition = not invert);
 	end;
 
-	procedure wait_clk(signal clk : in std_ulogic; signal condition : in std_ulogic) is
+	procedure wait_clk(signal clk : in std_ulogic; signal condition : in std_ulogic; invert : boolean := false) is
 	begin
-		wait until rising_edge(clk) and to_x01(condition) = '1';
+		-- useless parenthesis for readability, VHDL has = before and
+		wait until rising_edge(clk) and (to_x01(condition) = not to_stdulogic(invert));
 	end;
 
 end;

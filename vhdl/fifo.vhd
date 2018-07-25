@@ -8,7 +8,7 @@ entity fifo is
 	generic (
 		depth_order_g : positive;
 		data_width_g : positive;
-		prefill_g : positive := 1);
+		prefill_g : natural := 0);
 	port (
 		a_reset_i : in std_ulogic := '0';
 		a_clock_i : in std_ulogic;
@@ -35,6 +35,8 @@ use work.greycode_pack.all;
 
 architecture rtl of fifo is
 
+	constant sync_stages_c : positive := 2;
+
 	subtype address_t is greycode_t(depth_order_g-1 downto 0);
 
 	signal a_write_address, b_read_address : address_t := (others => '0');
@@ -42,6 +44,8 @@ architecture rtl of fifo is
 
 	signal b_write_address, a_read_address : address_t;
 	signal a_full, b_empty : std_ulogic;
+
+	signal async_fill : integer range 0 to 2**depth_order_g-1;
 
 begin
 
@@ -77,6 +81,7 @@ begin
 	sync_write_address_a_b : entity work.sync
 		generic map (
 			width_g => depth_order_g,
+			stages_g => sync_stages_c,
 			reset_value_g => '0')
 		port map (
 			reset_i => b_reset_i,
@@ -90,19 +95,19 @@ begin
 
 	b_read : process(b_reset_i, b_clock_i)
 		-- Compensate for sync and pipeline delay.
-		-- This assumes that a design that uses prefill will write (fill) continuously.
-		constant b_prefill_greycode_c : greycode_t(address_t'range) :=
-			to_greycode(std_ulogic_vector(to_unsigned(maximum(prefill_g - 3, 0), address_t'length)));
+		-- This assumes that fifo will be written continuously, once writing started.
+		constant b_prefill_c : natural :=  maximum(prefill_g - sync_stages_c - 1, 1);
 	begin
 		if b_reset_i = '1' then
 			b_read_address <= (others => '0');
-			b_prefill_reached <= to_stdulogic(prefill_g = 1);
+			b_prefill_reached <= to_stdulogic(prefill_g = 0);
 		elsif rising_edge(b_clock_i) then
 			assert (b_read_i and b_empty) = '0' report "fifo: read empty fifo";
 			if (b_read_i and not b_empty) = '1' then
 				b_read_address <= b_read_address + 1;
 			end if;
-			if b_write_address = b_prefill_greycode_c then
+			-- Cannot only use equal, because values may be lost in the sync.
+			if to_integer(unsigned(to_binary(b_write_address))) >= b_prefill_c then
 				b_prefill_reached <= '1';
 			end if;
 		end if;
@@ -117,5 +122,7 @@ begin
 			clock_i => a_clock_i,
 			data_i => b_read_address,
 			data_o => a_read_address);
+	
+	async_fill <= (to_integer(unsigned(to_binary(a_write_address))) - to_integer(unsigned(to_binary(b_read_address)))) mod 2**depth_order_g;
 
 end;

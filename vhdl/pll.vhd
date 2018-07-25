@@ -6,6 +6,7 @@ entity pll is
 		multiplier_g : positive;
 		divider_g : positive);
 	port (
+		run_i : in boolean := true;
 		clock_i : in std_ulogic;
 		clock_o : out std_ulogic;
 		lock_o : out std_ulogic);
@@ -26,7 +27,9 @@ begin
 	end process;
 	oscillate : process(pll_period, pll_clock)
 	begin
-		pll_clock <= transport not pll_clock after pll_period / 2;
+		if run_i and now > 0 ns then
+			pll_clock <= transport not pll_clock after pll_period / 2;
+		end if;
 	end process;
 	clock_o <= pll_clock;
 end;
@@ -54,6 +57,7 @@ begin
 			multiplier_g => 66,
 			divider_g => 16)
 		port map (
+			run_i => run,
 			clock_i => clock_i,
 			clock_o => clock_o);
 

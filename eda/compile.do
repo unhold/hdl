@@ -1,0 +1,16 @@
+vcom ../vhdl/rtl_pack.vhd
+vcom ../vhdl/tb_pack.vhd
+vcom ../vhdl/state_pack.vhd
+vcom ../vhdl/greycode_pack.vhd
+vcom ../vhdl/clk_div.vhd
+vcom ../vhdl/pulse_gen.vhd
+vcom ../vhdl/stb_gen.vhd
+vcom ../vhdl/sync.vhd
+vcom ../vhdl/pll.vhd
+vcom ../vhdl/dual_port_ram.vhd
+vcom ../vhdl/fifo.vhd
+vcom ../vhdl/gearbox.vhd
+vcom ../vhdl/gearbox_tb.vhd
+vcom ../vhdl/codec_8b10b_pack.vhd
+vcom ../vhdl/data_8b10b_tb.vhd
+vcom ../vhdl/pcs_6466b.vhd

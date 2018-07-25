@@ -7,10 +7,10 @@ entity sync is
 		stages_g : positive := 2;
 		reset_value_g : std_ulogic := '-');
 	port (
-		reset_i : in std_ulogic;
+		reset_i : in std_ulogic := '0';
 		clock_i : in std_ulogic;
 		data_i : in std_ulogic_vector(width_g-1 downto 0);
-		data_o : out std_ulogic_vector(width_g-1 downto 0));
+		data_o : out std_ulogic_vector(width_g-1 downto 0) := (others => reset_value_g));
 end;
 
 architecture rtl of sync is
@@ -21,6 +21,7 @@ begin
 	begin
 		if reset_i = '1' then
 			sync_r <= (others => (others => reset_value_g));
+			data_o <= (others => reset_value_g);
 		elsif rising_edge(clock_i) then
 			sync_r <= sync_r(sync_r'high-1 downto sync_r'low) & data_i;
 			data_o <= sync_r(sync_r'high);
