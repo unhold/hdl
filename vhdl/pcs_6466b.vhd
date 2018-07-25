@@ -232,7 +232,7 @@ architecture rtl of pcs_6466b_tx is
 		return to_string(octets, control);
 	end;	
 
-	-- Encode according to Figure 49–7 -- 64B/66B block formats
+	-- Encode according to Figure 49-7 -- 64B/66B block formats
 	function encode_6466b(first_i, second_i : in xgmii_t) return std_ulogic_vector is
 		constant data : std_ulogic_vector := first_i.data & second_i.data;
 		constant control : std_ulogic_vector := first_i.control & second_i.control;
