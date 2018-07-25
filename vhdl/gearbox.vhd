@@ -21,7 +21,7 @@ use work.rtl_pack.all;
 
 architecture rtl_fast of gearbox is
 
-	constant check_a_wider_b : boolean := check(a_width_g > b_width_g);
+	constant check_b_wider_a : boolean := check(b_width_g > a_width_g, "b>a");
 
 	signal b_fifo_read : std_ulogic;
 	signal b_fifo_prefill_reached : std_ulogic;
@@ -74,10 +74,10 @@ use work.rtl_pack.all;
 
 architecture rtl_slow of gearbox is
 
-	constant check_b_wider_a : boolean := check(b_width_g > a_width_g);
+	constant check_a_wider_b : boolean := check(a_width_g > b_width_g, "a>b");
 
 	signal a_fifo_write : std_ulogic;
-	signal a_fifo_data : std_ulogic_vector(a_width_g-1 downto 0);
+	signal a_fifo_data : std_ulogic_vector(b_width_g-1 downto 0);
 	signal b_fifo_prefill_reached : std_ulogic;
 
 	signal a_barrel : std_ulogic_vector(a_width_g+b_width_g-2 downto 0);
@@ -126,7 +126,7 @@ use work.rtl_pack.all;
 
 architecture rtl of gearbox is
 
-	constant check_a_nequal_b : boolean := check(a_width_g /= b_width_g);
+	constant check_a_nequal_b : boolean := check(a_width_g /= b_width_g, "a/=b");
 
 begin
 

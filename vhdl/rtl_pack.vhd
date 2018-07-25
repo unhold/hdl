@@ -23,7 +23,7 @@ package rtl_pack is
 	--! Check constant conditions in declarative sections.
 	function check(
 		condition : boolean;
-		message : string := "";
+		name : string := "(unnamed)";
 		sl : severity_level := error) return boolean;
 
 	function maximum(a, b : integer) return integer;
@@ -91,10 +91,10 @@ package body rtl_pack is
 
 	function check(
 		condition : boolean;
-		message : string := "";
+		name : string := "(unnamed)";
 		sl : severity_level := error) return boolean is
 	begin
-		assert condition report message severity sl;
+		assert condition report "check failed: " & name severity sl;
 		return condition;
 	end;
 
