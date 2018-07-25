@@ -31,7 +31,7 @@ library ieee;
 use ieee.numeric_std.all;
 
 library work;
-use work.greycode.all;
+use work.greycode_pack.all;
 
 architecture rtl of fifo is
 

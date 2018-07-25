@@ -1,7 +1,7 @@
 library ieee;
 use ieee.std_logic_1164.all;
 
-package greycode is
+package greycode_pack is
 	subtype greycode_t is std_ulogic_vector;
 	function to_greycode(binary : std_ulogic_vector) return greycode_t;
 	function to_binary(greycode : greycode_t) return std_ulogic_vector;
@@ -11,8 +11,8 @@ end;
 library ieee;
 use ieee.numeric_std.all;
 
-package body greycode is
-	function to_greycode(binary : std_ulogic_vector) return std_ulogic_vector is
+package body greycode_pack is
+	function to_greycode(binary : std_ulogic_vector) return greycode_t is
 		variable greycode : std_ulogic_vector(binary'range);
 	begin
 		greycode(binary'high) := binary(binary'high);
@@ -21,7 +21,7 @@ package body greycode is
 		end loop;
 		return greycode;
 	end;
-	function to_binary(greycode : std_ulogic_vector) return std_ulogic_vector is
+	function to_binary(greycode : greycode_t) return std_ulogic_vector is
 		variable binary : std_ulogic_vector(greycode'range);
 	begin
 		binary(greycode'high) := greycode(greycode'high);
