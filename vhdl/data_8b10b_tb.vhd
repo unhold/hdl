@@ -1,3 +1,6 @@
+entity data_8b10b_tb is
+end;
+
 library ieee;
 use ieee.std_logic_1164.all;
 use ieee.numeric_std.all;
@@ -5,9 +8,6 @@ use ieee.numeric_std.all;
 library work;
 use work.tb_pack.all;
 use work.codec_8b10b_pack.all;
-
-entity data_8b10b_tb is
-end;
 
 architecture tb of data_8b10b_tb is
 begin

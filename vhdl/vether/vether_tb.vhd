@@ -16,7 +16,7 @@ entity vether_tb is
 		led_no : out std_ulogic_vector(7 downto 0));
 end;
 
-architecture tbd of vether_tb is
+architecture tb of vether_tb is
 
 	procedure write(filename : string; data : data_t) is
 		file f : text is out filename;
