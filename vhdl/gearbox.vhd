@@ -1,6 +1,7 @@
 library ieee;
 use ieee.std_logic_1164.all;
 
+--! Higher order bits transfered first.
 entity gearbox is
 	generic (
 		a_width_g : positive;
@@ -28,7 +29,7 @@ architecture rtl_fast of gearbox is
 	signal b_fifo_data : std_ulogic_vector(a_width_g-1 downto 0);
 
 	signal b_buffer : std_ulogic_vector(a_width_g+b_width_g-2 downto 0);
-	signal b_index : natural range 0 to a_width_g-1;
+	signal b_index : natural range 0 to a_width_g-1 := a_width_g - b_width_g;
 
 begin
 
@@ -47,13 +48,13 @@ begin
 		b_prefill_reached_o => b_fifo_prefill_reached,
 		b_data_o => b_fifo_data);
 
-	b_fifo_read <= to_stdulogic(b_index > a_width_g - b_width_g - 1) and b_fifo_prefill_reached;
+	b_fifo_read <= to_stdulogic(b_index < b_width_g) and b_fifo_prefill_reached;
 
 	b_sync : process(b_reset_i, b_clock_i)
 	begin
 		if b_reset_i = '1' then
 			b_buffer <= (others => '-');
-			b_index <= 0;
+			b_index <= a_width_g - b_width_g;
 			b_data_o <= (others => '0');
 		elsif rising_edge(b_clock_i) then
 			b_data_o <= b_buffer(b_index+b_width_g-1 downto b_index);
@@ -61,7 +62,7 @@ begin
 				b_buffer(a_width_g-1 downto 0) <= b_fifo_data;
 				b_buffer(a_width_g+b_width_g-2 downto a_width_g) <= b_buffer(b_width_g-2 downto 0);
 			end if;
-			b_index <= (b_index + b_width_g) mod a_width_g;
+			b_index <= (b_index - b_width_g) mod a_width_g;
 		end if;
 	end process;
 
@@ -79,7 +80,7 @@ architecture rtl_slow of gearbox is
 
 	signal a_fifo_write : std_ulogic := '0';
 	signal a_buffer : std_ulogic_vector(a_width_g+b_width_g-2 downto 0);
-	signal a_index : natural range 0 to b_width_g-1;
+	signal a_index : natural range 0 to b_width_g-1 := 0;
 
 begin
 

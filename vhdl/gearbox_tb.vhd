@@ -1,6 +1,3 @@
-entity gearbox_tb is
-end;
-
 library ieee;
 use ieee.std_logic_1164.all;
 use ieee.numeric_std.all;
@@ -9,7 +6,10 @@ library work;
 use work.rtl_pack.all;
 use work.tb_pack.all;
 
-architecture tb of gearbox_tb is
+entity gearbox_tb is
+end;
+
+architecture tb1 of gearbox_tb is
 
 	constant a_width_g : positive := 4;
 	constant b_width_g : positive := 3;
@@ -46,7 +46,7 @@ begin
 		reset_i => reset,
 		clock_i => a_clock_i,
 		data_i(0) => reset,
-		data_o(0) => a_reset_i);		
+		data_o(0) => a_reset_i);
 
 	reset_b_sync : entity work.sync
 	generic map (
@@ -97,3 +97,88 @@ begin
 	end process;
 
 end;
+
+
+architecture tb2 of gearbox_tb is
+
+	constant a_width_g : positive := 4;
+	constant b_width_g : positive := 3;
+	constant fifo_depth_order_g : positive := 4;
+
+	signal run : boolean := true;
+	signal a_reset_i : std_ulogic;
+	signal a_clock_i : std_ulogic;
+	signal a_data_i, a_data_o : std_ulogic_vector(a_width_g-1 downto 0);
+	signal b_reset_i : std_ulogic;
+	signal b_clock_i : std_ulogic;
+	signal b_data_o : std_ulogic_vector(b_width_g-1 downto 0);
+
+begin
+
+	clk_gen(a_clock_i, run, 2 ns * a_width_g);
+	clk_gen(b_clock_i, run, 2 ns * b_width_g);
+	rst_gen(a_reset_i, 2 ns * a_width_g);
+	rst_gen(b_reset_i, 2 ns * b_width_g);
+
+	gearbox : entity work.gearbox
+	generic map (
+	    a_width_g => a_width_g,
+	    b_width_g => b_width_g,
+	    fifo_depth_order_g => fifo_depth_order_g)
+	port map (
+	    a_reset_i => a_reset_i,
+	    a_clock_i => a_clock_i,
+	    a_data_i => a_data_i,
+	    b_reset_i => b_reset_i,
+	    b_clock_i => b_clock_i,
+	    b_data_o => b_data_o);
+
+	stim : process
+	begin
+		wait until (a_reset_i or b_reset_i) = '0';
+
+		--a_data_i <= std_ulogic_vector(to_unsigned(1, a_width_g));
+		--wait_clk(a_clock_i, 10);
+
+		a_data_i <= std_ulogic_vector(to_unsigned(0, a_width_g));
+		wait_clk(a_clock_i, 2);
+
+		for i in 0 to 5 loop
+			a_data_i <= (others => '0');
+			wait_clk(a_clock_i);
+			a_data_i <= (others => '1');
+			wait_clk(a_clock_i);
+		end loop;
+
+		-- a_data_i <= std_ulogic_vector(to_unsigned(0, a_width_g));
+		-- wait_clk(a_clock_i, 2);
+
+		-- for i in 0 to b_width_g-1 loop
+			-- for i in 0 to 1 loop
+				-- a_data_i <= std_ulogic_vector(to_unsigned(2, a_width_g));
+				-- wait_clk(a_clock_i);
+				-- a_data_i <= std_ulogic_vector(to_unsigned(4, a_width_g));
+				-- wait_clk(a_clock_i);
+				-- a_data_i <= std_ulogic_vector(to_unsigned(9, a_width_g));
+				-- wait_clk(a_clock_i);
+			-- end loop;
+			-- a_data_i <= std_ulogic_vector(to_unsigned(0, a_width_g));
+			-- wait_clk(a_clock_i);
+		-- end loop;
+
+		-- a_data_i <= std_ulogic_vector(to_unsigned(0, a_width_g));
+		-- wait_clk(a_clock_i, 2);
+
+		-- for i in 0 to 2**a_width_g-1 loop
+			-- a_data_i <= std_ulogic_vector(to_unsigned(i, a_width_g));
+			-- wait_clk(a_clock_i);
+		-- end loop;
+
+		wait_clk(a_clock_i, 2*fifo_depth_order_g);
+		run <= false;
+		wait;
+	end process;
+
+end;
+
+

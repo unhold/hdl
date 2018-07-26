@@ -37,6 +37,10 @@ architecture rtl of fifo is
 
 	constant sync_stages_c : positive := 2;
 
+	-- Compensate for sync and pipeline delay.
+	-- This assumes that fifo will be written continuously, once writing started.
+	constant b_prefill_c : natural :=  maximum(prefill_g - sync_stages_c - 1, 1);
+
 	subtype address_t is greycode_t(depth_order_g-1 downto 0);
 
 	signal a_write_address, b_read_address : address_t := (others => '0');
@@ -44,6 +48,8 @@ architecture rtl of fifo is
 
 	signal b_write_address, a_read_address : address_t;
 	signal a_full, b_empty : std_ulogic;
+	signal b_next_read_address : address_t;
+	signal b_next_prefill_reached : std_ulogic;
 
 	signal async_fill : integer range 0 to 2**depth_order_g-1;
 
@@ -59,7 +65,7 @@ begin
 			a_write_i => a_write_i,
 			a_data_i => a_data_i,
 			b_clock_i => b_clock_i,
-			b_address_i => b_read_address,
+			b_address_i => b_next_read_address,
 			b_read_i => '1',
 			b_data_o => b_data_o);
 
@@ -90,26 +96,20 @@ begin
 			data_o => b_write_address);
 
 	b_empty <= to_stdulogic(b_read_address = b_write_address) or not b_prefill_reached;
+	b_next_read_address <= b_read_address + 1 when (b_read_i and not b_empty) = '1' else b_read_address;
+	b_next_prefill_reached <= b_prefill_reached or to_stdulogic(to_integer(unsigned(to_binary(b_write_address))) >= b_prefill_c);
+		-- Cannot only use equal, because values may be lost in the sync.
 	b_empty_o <= b_empty;
 	b_prefill_reached_o <= b_prefill_reached;
 
-	b_read : process(b_reset_i, b_clock_i)
-		-- Compensate for sync and pipeline delay.
-		-- This assumes that fifo will be written continuously, once writing started.
-		constant b_prefill_c : natural :=  maximum(prefill_g - sync_stages_c - 1, 1);
+	b_read_sync : process(b_reset_i, b_clock_i)
 	begin
 		if b_reset_i = '1' then
 			b_read_address <= (others => '0');
 			b_prefill_reached <= to_stdulogic(prefill_g = 0);
 		elsif rising_edge(b_clock_i) then
-			assert (b_read_i and b_empty) = '0' report "fifo: read empty fifo";
-			if (b_read_i and not b_empty) = '1' then
-				b_read_address <= b_read_address + 1;
-			end if;
-			-- Cannot only use equal, because values may be lost in the sync.
-			if to_integer(unsigned(to_binary(b_write_address))) >= b_prefill_c then
-				b_prefill_reached <= '1';
-			end if;
+			b_read_address <= b_next_read_address;
+			b_prefill_reached <= b_next_prefill_reached;
 		end if;
 	end process;
 
@@ -122,7 +122,7 @@ begin
 			clock_i => a_clock_i,
 			data_i => b_read_address,
 			data_o => a_read_address);
-	
+
 	async_fill <= (to_integer(unsigned(to_binary(a_write_address))) - to_integer(unsigned(to_binary(b_read_address)))) mod 2**depth_order_g;
 
 end;
