@@ -80,7 +80,7 @@ architecture rtl_slow of gearbox is
 
 	signal a_fifo_write : std_ulogic := '0';
 	signal a_buffer : std_ulogic_vector(a_width_g+b_width_g-2 downto 0);
-	signal a_index : natural range 0 to b_width_g-1 := 0;
+	signal a_index : natural range 0 to b_width_g-1 := b_width_g - 1;
 
 begin
 
@@ -100,24 +100,25 @@ begin
 		b_prefill_reached_o => b_fifo_prefill_reached,
 		b_data_o => b_data_o);
 
-	a_fifo_data <= a_buffer(b_width_g-1 downto 0);
+	a_fifo_data <= a_buffer(a_width_g+b_width_g-2 downto a_width_g-1);
 
 	a_sync : process(a_reset_i, a_clock_i)
 	begin
 		if a_reset_i = '1' then
 			a_fifo_write <= '0';
 			a_buffer <= (others => '-');
-			a_index <= 0;
+			a_index <= b_width_g - 1;
 		elsif rising_edge(a_clock_i) then
 			if a_fifo_write = '1' then
 				a_buffer <= (others => '-');
-				if a_index /= 0 then
-					a_buffer(a_index-1 downto 0) <= a_buffer(a_index+b_width_g-1 downto b_width_g);
+				if a_index /= b_width_g - 1 then
+					a_buffer(a_width_g+b_width_g-2 downto a_width_g+a_index)
+						<= a_buffer(a_width_g-2 downto a_width_g+a_index-b_width_g);
 				end if;
 			end if;
-			a_fifo_write <= to_stdulogic(a_index > b_width_g - a_width_g - 1);
+			a_fifo_write <= to_stdulogic(a_index < a_width_g);
 			a_buffer(a_index+a_width_g-1 downto a_index) <= a_data_i;
-			a_index <= (a_index + a_width_g) mod b_width_g;
+			a_index <= (a_index - a_width_g) mod b_width_g;
 		end if;
 	end process;
 
