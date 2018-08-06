@@ -14,10 +14,16 @@ package ethernet_10g is
 		control : std_ulogic_vector(3 downto 0); -- XGMII_TXC, XGMII_RXC
 	end record;
 
+	type xgmii_vec_t is array(natural range <>) of xgmii_t;
+
 	constant xgmii_idle_c : xgmii_t := (
 		clock => 'X',
 		data => x"07070707", -- idle
 		control => "1111");
+
+	constant xgmii_octet_idle_c : octet_t := x"07";
+	constant xgmii_octet_start_c : octet_t := x"fb";
+	constant xgmii_octet_terminate_c : octet_t := x"fd";
 
 	-- Standard IEEE802.3-2015 section 4 clause 51:
 	-- Physical Medium Attachment (PMA) sublayer, type Serial
@@ -27,10 +33,283 @@ package ethernet_10g is
 		data : std_ulogic_vector(15 downto 0);
 	end record;
 
-	constant xgmiid_idle_c : octet_t := x"07";
-	constant xgmiid_start_c : octet_t := x"fb";
-	constant xgmiid_terminate_c : octet_t := x"fd";
+	-- Standard IEEE802.3-2015 section 4 clause 49:
+	-- Physical Coding Sublayer (PCS) for 64/66b, type 10GBASE-R
+	-- Encode and decoding according to Figure 49-7 -- 64B/66B block formats
+	function encode_6466b(first_i, second_i : xgmii_t) return std_ulogic_vector;
+	function decode_6466b(code_i :  std_ulogic_vector) return xgmii_vec_t;
 
+end;
+
+package body ethernet_10g is
+
+	subtype ccode_t is std_ulogic_vector(6 downto 0);
+	subtype ocode_t is std_ulogic_vector(3 downto 0);
+
+	function to_octet(data : std_ulogic_vector) return octet_vec_t is
+		alias data_downto : std_ulogic_vector(data'high downto data'low) is data;
+		variable octet_vec : octet_vec_t(0 to 0) := (
+			0 => data_downto(data_downto'left downto data_downto'left-7));
+	begin
+		if data_downto'length = 8 then
+			return octet_vec;
+		else
+			return octet_vec & to_octet(
+				data_downto(data_downto'left-8 downto data_downto'right));
+		end if;
+	end;
+
+	function to_suv(octet_vec : octet_vec_t) return std_ulogic_vector is
+		alias octet_vec_to : octet_vec_t(octet_vec'low to octet_vec'high) is octet_vec;
+	begin
+		if octet_vec_to'length = 0 then
+			return "";
+		else
+			return octet_vec_to(octet_vec_to'left) & to_suv(
+				octet_vec_to(octet_vec_to'left+1 to octet_vec_to'right));
+		end if;
+	end;
+
+	function to_ccode(octet : octet_t) return ccode_t is
+		variable ccode8 : octet_t := (others => 'X');
+	begin
+		case octet is
+			when x"07" => ccode8 := x"00"; -- idle, /I/
+			when x"06" => ccode8 := x"06"; -- LPI, /LI/
+			when x"1c" => ccode8 := x"2d"; -- reserved0, /R/
+			when x"3c" => ccode8 := x"33"; -- reserved1
+			when x"7c" => ccode8 := x"4b"; -- reserved2, /A/
+			when x"bc" => ccode8 := x"55"; -- reserved3, /K/
+			when x"dc" => ccode8 := x"66"; -- reserved4
+			when x"f7" => ccode8 := x"78"; -- reserved5
+			when others => null;
+		end case;
+		return ccode8(6 downto 0);
+	end;
+
+	function is_ccode(octet : octet_t) return boolean is
+	begin
+		return not is_x(to_ccode(octet));
+	end;
+
+	function ccode_to_octet(ccode : ccode_t) return octet_t is
+		constant ccode8 : octet_t := '0' & ccode;
+	begin
+		case ccode8 is
+			when x"00" => return x"07"; -- idle, /I/
+			when x"06" => return x"06"; -- LPI, /LI/
+			when x"2d" => return x"1c"; -- reserved0, /R/
+			when x"33" => return x"3c"; -- reserved1
+			when x"4b" => return x"7c"; -- reserved2, /A/
+			when x"55" => return x"bc"; -- reserved3, /K/
+			when x"66" => return x"dc"; -- reserved4
+			when x"78" => return x"f7"; -- reserved5
+			when others => return (others => 'X');
+		end case;
+	end;
+
+	function to_ccode(octet_vec : octet_vec_t) return std_ulogic_vector is
+		alias octet_vec_to : octet_vec_t(octet_vec'low to octet_vec'high) is octet_vec;
+		constant empty_suv_c : std_ulogic_vector := "";
+	begin
+		if octet_vec_to'length = 0 then
+			return empty_suv_c;
+		else
+			return to_ccode(octet_vec_to(octet_vec_to'left)) & to_ccode(
+				octet_vec_to(octet_vec_to'left+1 to octet_vec_to'right));
+		end if;
+	end;
+
+	function to_ocode(octet : octet_t) return ocode_t is
+	begin
+		case octet is
+			when x"9c" => return x"0"; -- Sequence ordered set, /Q/
+			when x"5c" => return x"F"; -- Signal ordered set, /Fsig/
+			when others => return (others => 'X');
+		end case;
+	end;
+
+	function is_ocode(octet : octet_t) return boolean is
+	begin
+		return not is_x(to_ocode(octet));
+	end;
+
+	function ocode_to_octet(ocode : ocode_t) return octet_t is
+	begin
+		case ocode is
+			when x"0" => return x"9c"; -- Sequence ordered set, /Q/
+			when x"F" => return x"5c"; -- Signal ordered set, /Fsig/
+			when others => return (others => 'X');
+		end case;
+	end;
+
+	function to_string(octet : octet_t; control : std_ulogic) return string is
+	begin
+		if control = '1' then
+			if octet = xgmii_octet_start_c then
+				return "S";
+			elsif octet = xgmii_octet_terminate_c then
+				return "T";
+			elsif is_ccode(octet) then
+				return "C";
+			elsif is_ocode(octet) then
+				return "O";
+			else
+				return "X";
+			end if;
+		elsif control = '0' then
+			return "D";
+		else
+			return "X";
+		end if;
+	end;
+
+	function to_string(octets : octet_vec_t; control : std_ulogic_vector; from_index : natural := 0) return string is
+	begin
+		if from_index > octets'high then
+			return "";
+		else
+			return to_string(octets(from_index), control(from_index)) & integer'image(from_index) & " " & to_string(
+				octets, control, from_index+1);
+		end if;
+	end;
+
+	function to_string(first_i, second_i : xgmii_t) return string is
+		constant data : std_ulogic_vector := first_i.data & second_i.data;
+		constant control : std_ulogic_vector := first_i.control & second_i.control;
+		constant octets : octet_vec_t := to_octet(data);
+	begin
+		return to_string(octets, control);
+	end;
+
+	function encode_6466b(first_i, second_i : xgmii_t) return std_ulogic_vector is
+		constant data : std_ulogic_vector := first_i.data & second_i.data;
+		constant control : std_ulogic_vector := first_i.control & second_i.control;
+		constant octets : octet_vec_t := to_octet(data);
+		variable pl : std_ulogic_vector(63 downto 0) := (others => '-'); -- payload
+	begin
+		case control is
+			when "00000000" => -- D0 D1 D2 D3/D4 D5 D6 D7
+				return "01" & data;
+			when "11111111" =>
+				if octets(0) = xgmii_octet_terminate_c then -- T0 C1 C2 C3/C4 C5 C6 C7
+					pl := x"87" & "-------" & to_ccode(octets(1 to 7));
+				else -- C0 C1 C2 C3/C4 C5 C6 C7
+					pl := x"1e" & to_ccode(octets);
+				end if;
+			when "11111000" =>
+				if is_ocode(octets(4)) then -- C0 C1 C2 C3/O4 D5 D6 D7
+					pl := x"2d" & to_ccode(octets(0 to 4)) & to_ocode(octets(4)) & to_suv(octets(5 to 7));
+				elsif octets(4) = xgmii_octet_start_c then -- C0 C1 C2 C3/S4 D5 D6 D7
+					pl := x"33" & to_ccode(octets(0 to 4)) & "----" & to_suv(octets(5 to 7));
+				end if;
+			when "10001000" =>
+				if octets(4) = xgmii_octet_start_c then -- O0 D1 D2 D3/S4 D5 D6 D7
+					pl := x"66" & to_suv(octets(1 to 4)) & to_ocode(octets(0)) & "----" & to_suv(octets(5 to 7));
+				elsif is_ocode(octets(4)) then -- O0 D1 D2 D3/O4 D5 D6 D7
+					pl := x"55" & to_suv(octets(1 to 3)) & to_ocode(octets(0)) & to_ocode(octets(4)) & to_suv(octets(5 to 7));
+				end if;
+			when "10000000" => -- S0 D1 D2 D3/D4 D5 D6 D7
+					pl := x"78" & to_suv(octets(1 to 7));
+				if octets(0) = xgmii_octet_start_c then
+				end if;
+			when "10001111" => -- O0 D1 D2 D3/C4 C5 C6 C7
+				pl := x"4b" & to_suv(octets(1 to 3)) & to_ocode(octets(0)) & to_ccode(octets(4 to 7));
+			when "01111111" =>
+				if octets(1) = xgmii_octet_terminate_c then -- D0 T1 C2 C3/C4 C5 C6 C7
+					pl := x"99" & octets(0) & "------" & to_ccode(octets(2 to 7));
+				end if;
+			when "00111111" =>
+				if octets(2) = xgmii_octet_terminate_c then -- D0 D1 T2 C3/C4 C5 C6 C7
+					pl := x"aa" & to_suv(octets(0 to 1)) & "-----" & to_ccode(octets(2 to 7));
+				end if;
+			when "00011111" =>
+				if octets(3) = xgmii_octet_terminate_c then -- D0 D1 D2 T3/C4 C5 C6 C7
+					pl := x"b4" & to_suv(octets(0 to 2)) & "----" & to_ccode(octets(3 to 7));
+				end if;
+			when "00001111" =>
+				if octets(4) = xgmii_octet_terminate_c then -- D0 D1 D2 D3/T4 C5 C6 C7
+					pl := x"cc" &  to_suv(octets(0 to 3)) & "--" & to_ccode(octets(4 to 7));
+				end if;
+			when "00000111" =>
+				if octets(5) = xgmii_octet_terminate_c then -- D0 D1 D2 D3/D4 T5 C6 C7
+					pl := x"d2" &  to_suv(octets(0 to 4)) & "--" & to_ccode(octets(5 to 7));
+				end if;
+			when "00000011" =>
+				if octets(6) = xgmii_octet_terminate_c then -- D0 D1 D2 D3/D4 D5 T6 C7
+					pl := x"e1" &  to_suv(octets(0 to 5)) & "-" & to_ccode(octets(6 to 7));
+				end if;
+			when "00000001" =>
+				if octets(7) = xgmii_octet_terminate_c then -- D0 D1 D2 D3/D4 D5 D6 T7
+					pl := x"ff" &  to_suv(octets(0 to 6));
+				end if;
+			when others => null;
+		end case;
+		assert not is_x(pl) report "encode_6466b: invalid input data block format " & to_string(first_i, second_i) severity warning;
+		return "10" & pl;
+	end;
+
+	function decode_6466b(code_i :  std_ulogic_vector) return xgmii_vec_t is
+		type code_type_t is ('D', 'C', 'O', 'S', 'T', 'X');
+		type code_type_vec_t is array(natural range<>) of code_type_t;
+		type natural_vec_t is array(natural range<>) of natural;
+		type control_block_format_t is record
+			types : code_type_vec_t(0 to 7);
+			starts : natural_vec_t(0 to 7);
+		end record;
+		function field_to_format(field : octet_t) return control_block_format_t is
+		begin
+			case field is
+				when x"1e" => return control_block_format_t'(types => "CCCCCCCC", starts => (10, 17, 24, 31, 38, 45, 52, 59));
+				when x"2d" => return control_block_format_t'(types => "CCCCODDD", starts => (10, 17, 24, 31, 38, 42, 50, 58));
+				when x"33" => return control_block_format_t'(types => "CCCCSDDD", starts => (10, 17, 24, 31, 66, 42, 50, 58));
+				when x"66" => return control_block_format_t'(types => "ODDDSDDD", starts => (34, 10, 18, 26, 66, 42, 50, 58));
+				-- TODO: other formats
+				--when x"" => return control_block_format_t'(types => "", starts => ());
+				when others => return control_block_format_t'(types => "XXXXXXXX", starts => (others => 66));
+			end case;
+		end;
+		alias code : std_ulogic_vector(0 to 65) is code_i;
+		function decode_data(type_i : code_type_t; start_i : natural) return octet_t is
+		begin
+			case type_i is
+				when 'D' => return octet_t(code(start_i to start_i+7));
+				when 'C' => return ccode_to_octet(code(start_i to start_i+6));
+				when 'O' => return ocode_to_octet(code(start_i to start_i+3));
+				when 'S' => assert start_i = 66; return xgmii_octet_start_c;
+				when 'T' => assert start_i = 66; return xgmii_octet_terminate_c;
+				when 'X' => return (others => 'X');
+			end case;
+		end;
+		function decode_control(type_i : code_type_t) return std_ulogic is
+		begin
+			case type_i is
+				when 'D' => return '0';
+				when 'C' | 'O' | 'S' | 'T' => return '1';
+				when 'X' => return 'X';
+			end case;
+		end;
+		variable data : octet_vec_t(0 to 7) := (others => (others => 'X'));
+		variable control : std_ulogic_vector(0 to 7) := (others => 'X');
+		variable format : control_block_format_t;
+	begin
+		case code(0 to 1) is
+		when "01" =>
+			data := to_octet(code(2 to 65));
+			control := (others => '0');
+		when "10" =>
+			format := field_to_format(code(2 to 9));
+			for i in 0 to 7 loop
+				data(i) := decode_data(format.types(i), format.starts(i));
+				control(i) := decode_control(format.types(i));
+			end loop;
+		when others =>
+			null;
+		end case;
+		return (
+			0 => (clock => 'X', data => to_suv(data(0 to 3)), control => control(0 to 3)),
+			1 => (clock => 'X', data => to_suv(data(4 to 7)), control => control(4 to 7)));
+	end;
 end;
 
 
@@ -118,188 +397,6 @@ end;
 
 architecture rtl of pcs_6466b_tx is
 
-	subtype ccode_t is std_ulogic_vector(6 downto 0);
-	subtype ocode_t is std_ulogic_vector(3 downto 0);
-
-	function to_octet(data : std_ulogic_vector) return octet_vec_t is
-		alias data_downto : std_ulogic_vector(data'high downto data'low) is data;
-		variable octet_vec : octet_vec_t(0 to 0) := (
-			0 => data_downto(data_downto'left downto data_downto'left-7));
-	begin
-		if data_downto'length = 8 then
-			return octet_vec;
-		else
-			return octet_vec & to_octet(
-				data_downto(data_downto'left-8 downto data_downto'right));
-		end if;
-	end;
-
-	function to_suv(octet_vec : octet_vec_t) return std_ulogic_vector is
-		alias octet_vec_to : octet_vec_t(octet_vec'low to octet_vec'high) is octet_vec;
-	begin
-		if octet_vec_to'length = 0 then
-			return "";
-		else
-			return octet_vec_to(octet_vec_to'left) & to_suv(
-				octet_vec_to(octet_vec_to'left+1 to octet_vec_to'right));
-		end if;
-	end;
-
-	function to_ccode(octet : octet_t) return ccode_t is
-		variable ccode8 : octet_t := (others => 'X');
-	begin
-		case octet is
-			when x"07" => ccode8 := x"00"; -- idle, /I/
-			when x"06" => ccode8 := x"06"; -- LPI, /LI/
-			when x"1c" => ccode8 := x"2d"; -- reserved0, /R/
-			when x"3c" => ccode8 := x"33"; -- reserved1
-			when x"7c" => ccode8 := x"4b"; -- reserved2, /A/
-			when x"bc" => ccode8 := x"55"; -- reserved3, /K/
-			when x"dc" => ccode8 := x"66"; -- reserved4
-			when x"f7" => ccode8 := x"78"; -- reserved5
-			when others => null;
-		end case;
-		return ccode8(6 downto 0);
-	end;
-
-	function is_ccode(octet : octet_t) return boolean is
-	begin
-		return not is_x(to_ccode(octet));
-	end;
-
-	function to_ccode(octet_vec : octet_vec_t) return std_ulogic_vector is
-		alias octet_vec_to : octet_vec_t(octet_vec'low to octet_vec'high) is octet_vec;
-		constant empty_suv_c : std_ulogic_vector := "";
-	begin
-		if octet_vec_to'length = 0 then
-			return empty_suv_c;
-		else
-			return to_ccode(octet_vec_to(octet_vec_to'left)) & to_ccode(
-				octet_vec_to(octet_vec_to'left+1 to octet_vec_to'right));
-		end if;
-	end;
-
-	function to_ocode(octet : octet_t) return ocode_t is
-	begin
-		case octet is
-			when x"9c" => return x"0"; -- Sequence ordered set, /Q/
-			when x"5c" => return x"F"; -- Signal ordered set, /Fsig/
-			when others => return (others => 'X');
-		end case;
-	end function;
-
-	function is_ocode(octet : octet_t) return boolean is
-	begin
-		return not is_x(to_ocode(octet));
-	end;
-	
-	function to_string(octet : octet_t; control : std_ulogic) return string is
-	begin
-		if control = '1' then
-			if octet = xgmiid_start_c then
-				return "S";
-			elsif octet = xgmiid_terminate_c then
-				return "T";
-			elsif is_ccode(octet) then
-				return "C";
-			elsif is_ocode(octet) then
-				return "O";
-			else
-				return "X";
-			end if;
-		elsif control = '0' then
-			return "D";
-		else
-			return "X";
-		end if;
-	end;
-
-	function to_string(octets : octet_vec_t; control : std_ulogic_vector; from_index : natural := 0) return string is
-	begin
-		if from_index > octets'high then
-			return "";
-		else
-			return to_string(octets(from_index), control(from_index)) & integer'image(from_index) & " " & to_string(
-				octets, control, from_index+1);
-		end if;
-	end;
-
-	function to_string(first_i, second_i : in xgmii_t) return string is
-		constant data : std_ulogic_vector := first_i.data & second_i.data;
-		constant control : std_ulogic_vector := first_i.control & second_i.control;
-		constant octets : octet_vec_t := to_octet(data);
-	begin
-		return to_string(octets, control);
-	end;	
-
-	-- Encode according to Figure 49-7 -- 64B/66B block formats
-	function encode_6466b(first_i, second_i : in xgmii_t) return std_ulogic_vector is
-		constant data : std_ulogic_vector := first_i.data & second_i.data;
-		constant control : std_ulogic_vector := first_i.control & second_i.control;
-		constant octets : octet_vec_t := to_octet(data);
-		variable pl : std_ulogic_vector(63 downto 0) := (others => '-'); -- payload
-	begin
-		case control is
-			when "00000000" => -- D0 D1 D2 D3/D4 D5 D6 D7
-				return "01" & data;
-			when "11111111" =>
-				if octets(0) = xgmiid_terminate_c then -- T0 C1 C2 C3/C4 C5 C6 C7
-					pl := x"87" & "-------" & to_ccode(octets(1 to 7));
-				else -- C0 C1 C2 C3/C4 C5 C6 C7
-					pl := x"1e" & to_ccode(octets);
-				end if;
-			when "11111000" =>
-				if is_ocode(octets(4)) then -- C0 C1 C2 C3/O4 D5 D6 D7
-					pl := x"2d" & to_ccode(octets(0 to 4)) & to_ocode(octets(4)) & to_suv(octets(5 to 7));
-				elsif octets(4) = xgmiid_start_c then -- C0 C1 C2 C3/S4 D5 D6 D7
-					pl := x"33" & to_ccode(octets(0 to 4)) & "----" & to_suv(octets(5 to 7));
-				end if;
-			when "10001000" =>
-				if octets(4) = xgmiid_start_c then -- O0 D1 D2 D3/S4 D5 D6 D7
-					pl := x"66" & to_suv(octets(1 to 4)) & to_ocode(octets(0)) & "----" & to_suv(octets(5 to 7));
-				elsif is_ocode(octets(4)) then -- O0 D1 D2 D3/O4 D5 D6 D7
-					pl := x"55" & to_suv(octets(1 to 3)) & to_ocode(octets(0)) & to_ocode(octets(4)) & to_suv(octets(5 to 7));
-				end if;
-			when "10000000" => -- S0 D1 D2 D3/D4 D5 D6 D7
-					pl := x"78" & to_suv(octets(1 to 7));
-				if octets(0) = xgmiid_start_c then
-				end if;
-			when "10001111" => -- O0 D1 D2 D3/C4 C5 C6 C7
-				pl := x"4b" & to_suv(octets(1 to 3)) & to_ocode(octets(0)) & to_ccode(octets(4 to 7));
-			when "01111111" =>
-				if octets(1) = xgmiid_terminate_c then -- D0 T1 C2 C3/C4 C5 C6 C7
-					pl := x"99" & octets(0) & "------" & to_ccode(octets(2 to 7));
-				end if;
-			when "00111111" =>
-				if octets(2) = xgmiid_terminate_c then -- D0 D1 T2 C3/C4 C5 C6 C7
-					pl := x"aa" & to_suv(octets(0 to 1)) & "-----" & to_ccode(octets(2 to 7));
-				end if;
-			when "00011111" =>
-				if octets(3) = xgmiid_terminate_c then -- D0 D1 D2 T3/C4 C5 C6 C7
-					pl := x"b4" & to_suv(octets(0 to 2)) & "----" & to_ccode(octets(3 to 7));
-				end if;
-			when "00001111" =>
-				if octets(4) = xgmiid_terminate_c then -- D0 D1 D2 D3/T4 C5 C6 C7
-					pl := x"cc" &  to_suv(octets(0 to 3)) & "--" & to_ccode(octets(4 to 7));
-				end if;
-			when "00000111" =>
-				if octets(5) = xgmiid_terminate_c then -- D0 D1 D2 D3/D4 T5 C6 C7
-					pl := x"d2" &  to_suv(octets(0 to 4)) & "--" & to_ccode(octets(5 to 7));
-				end if;
-			when "00000011" =>
-				if octets(6) = xgmiid_terminate_c then -- D0 D1 D2 D3/D4 D5 T6 C7
-					pl := x"e1" &  to_suv(octets(0 to 5)) & "-" & to_ccode(octets(6 to 7));
-				end if;
-			when "00000001" =>
-				if octets(7) = xgmiid_terminate_c then -- D0 D1 D2 D3/D4 D5 D6 T7
-					pl := x"ff" &  to_suv(octets(0 to 6));
-				end if;
-			when others => null;
-		end case;
-		assert not is_x(pl) report "encode_6466b: invalid input data block format " & to_string(first_i, second_i) severity warning;
-		return "10" & pl;
-	end;
-
 	signal last_xgmii_r : xgmii_t := xgmii_idle_c;
 	signal encoder_valid_r : std_ulogic := '0';
 	signal encoder_data_r : std_ulogic_vector(65 downto 0);
@@ -381,6 +478,12 @@ entity pcs_6466b_rx is
 	port (
 		xsbi_i : in xsbi_t;
 		xgmii_o : out xgmii_t);
+end;
+
+architecture rtl of pcs_6466b_rx is
+begin
+
+
 end;
 
 
