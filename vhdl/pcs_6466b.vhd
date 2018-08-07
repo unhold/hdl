@@ -264,8 +264,17 @@ package body ethernet_10g is
 				when x"2d" => return control_block_format_t'(types => "CCCCODDD", starts => (10, 17, 24, 31, 38, 42, 50, 58));
 				when x"33" => return control_block_format_t'(types => "CCCCSDDD", starts => (10, 17, 24, 31, 66, 42, 50, 58));
 				when x"66" => return control_block_format_t'(types => "ODDDSDDD", starts => (34, 10, 18, 26, 66, 42, 50, 58));
-				-- TODO: other formats
-				--when x"" => return control_block_format_t'(types => "", starts => ());
+				when x"55" => return control_block_format_t'(types => "ODDDODDD", starts => (32, 10, 18, 24, 38, 40, 48, 56));
+				when x"78" => return control_block_format_t'(types => "SDDDDDDD", starts => (66, 10, 18, 24, 32, 40, 48, 56));
+				when x"4b" => return control_block_format_t'(types => "ODDDCCCC", starts => (32, 10, 18, 24, 38, 45, 52, 59));
+				when x"87" => return control_block_format_t'(types => "TCCCCCCC", starts => (66, 17, 24, 31, 38, 45, 52, 59));
+				when x"99" => return control_block_format_t'(types => "DTCCCCCC", starts => (10, 66, 24, 31, 38, 45, 52, 59));
+				when x"aa" => return control_block_format_t'(types => "DDTCCCCC", starts => (10, 18, 66, 31, 38, 45, 52, 59));
+				when x"b4" => return control_block_format_t'(types => "DDDTCCCC", starts => (10, 18, 24, 66, 38, 45, 52, 59));
+				when x"cc" => return control_block_format_t'(types => "DDDDTCCC", starts => (10, 18, 24, 32, 66, 45, 52, 59));
+				when x"d2" => return control_block_format_t'(types => "DDDDDTCC", starts => (10, 18, 24, 32, 40, 66, 52, 59));
+				when x"e1" => return control_block_format_t'(types => "DDDDDDTC", starts => (10, 18, 24, 32, 40, 48, 66, 59));
+				when x"ff" => return control_block_format_t'(types => "DDDDDDDT", starts => (10, 18, 24, 32, 40, 48, 56, 66));
 				when others => return control_block_format_t'(types => "XXXXXXXX", starts => (others => 66));
 			end case;
 		end;
