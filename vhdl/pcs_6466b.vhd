@@ -33,11 +33,13 @@ package ethernet_10g is
 		data : std_ulogic_vector(15 downto 0);
 	end record;
 
+	subtype code66_t is std_ulogic_vector(65 downto 0);
+
 	-- Standard IEEE802.3-2015 section 4 clause 49:
 	-- Physical Coding Sublayer (PCS) for 64/66b, type 10GBASE-R
-	-- Encode and decoding according to Figure 49-7 -- 64B/66B block formats
-	function encode_6466b(first_i, second_i : xgmii_t) return std_ulogic_vector;
-	function decode_6466b(code_i :  std_ulogic_vector) return xgmii_vec_t;
+	-- Encode and decoding according to 49.2.4 -- 64B/66B transmission code
+	function encode_6466b(first, second : xgmii_t) return code66_t;
+	function decode_6466b(code : code66_t) return xgmii_vec_t;
 
 end;
 
@@ -47,15 +49,14 @@ package body ethernet_10g is
 	subtype ocode_t is std_ulogic_vector(3 downto 0);
 
 	function to_octet(data : std_ulogic_vector) return octet_vec_t is
-		alias data_downto : std_ulogic_vector(data'high downto data'low) is data;
-		variable octet_vec : octet_vec_t(0 to 0) := (
-			0 => data_downto(data_downto'left downto data_downto'left-7));
+		alias data_to : std_ulogic_vector(0 to data'length-1) is data;
+		variable octet_vec : octet_vec_t(0 to 0) := (0 => data_to(0 to 7));
 	begin
-		if data_downto'length = 8 then
+		if data_to'length = 8 then
 			return octet_vec;
 		else
 			return octet_vec & to_octet(
-				data_downto(data_downto'left-8 downto data_downto'right));
+				data_to(8 to data_to'high));
 		end if;
 	end;
 
@@ -174,82 +175,85 @@ package body ethernet_10g is
 		end if;
 	end;
 
-	function to_string(first_i, second_i : xgmii_t) return string is
-		constant data : std_ulogic_vector := first_i.data & second_i.data;
-		constant control : std_ulogic_vector := first_i.control & second_i.control;
+	function to_string(first, second : xgmii_t) return string is
+		constant data : std_ulogic_vector := first.data & second.data;
+		constant control : std_ulogic_vector := first.control & second.control;
 		constant octets : octet_vec_t := to_octet(data);
 	begin
 		return to_string(octets, control);
 	end;
 
-	function encode_6466b(first_i, second_i : xgmii_t) return std_ulogic_vector is
-		constant data : std_ulogic_vector := first_i.data & second_i.data;
-		constant control : std_ulogic_vector := first_i.control & second_i.control;
-		constant octets : octet_vec_t := to_octet(data);
+
+
+	function encode_6466b(first, second : xgmii_t) return code66_t is	
+		constant data : std_ulogic_vector(63 downto 0) := second.data & first.data;
+		constant control : std_ulogic_vector(7 downto 0) := second.control & first.control;
+		constant octets : octet_vec_t(7 downto 0) := to_octet(data);
 		variable pl : std_ulogic_vector(63 downto 0) := (others => '-'); -- payload
 	begin
 		case control is
 			when "00000000" => -- D0 D1 D2 D3/D4 D5 D6 D7
-				return "01" & data;
+				return code66_t'(data & "10");
 			when "11111111" =>
 				if octets(0) = xgmii_octet_terminate_c then -- T0 C1 C2 C3/C4 C5 C6 C7
-					pl := x"87" & "0000000" & to_ccode(octets(1 to 7));
+					pl := to_ccode(octets(7 downto 1)) & "0000000" & x"87";
 				else -- C0 C1 C2 C3/C4 C5 C6 C7
-					pl := x"1e" & to_ccode(octets);
+					pl := to_ccode(octets) & x"1e";
 				end if;
 			when "11111000" =>
 				if is_ocode(octets(4)) then -- C0 C1 C2 C3/O4 D5 D6 D7
-					pl := x"2d" & to_ccode(octets(0 to 4)) & to_ocode(octets(4)) & to_suv(octets(5 to 7));
+					pl := to_suv(octets(7 downto 5)) & to_ocode(octets(4)) & to_ccode(octets(4 downto 0)) & x"2d";
 				elsif octets(4) = xgmii_octet_start_c then -- C0 C1 C2 C3/S4 D5 D6 D7
-					pl := x"33" & to_ccode(octets(0 to 4)) & "0000" & to_suv(octets(5 to 7));
+					pl := to_suv(octets(7 downto 5)) & "0000" & to_ccode(octets(4 downto 0)) & x"33";
 				end if;
 			when "10001000" =>
 				if octets(4) = xgmii_octet_start_c then -- O0 D1 D2 D3/S4 D5 D6 D7
-					pl := x"66" & to_suv(octets(1 to 4)) & to_ocode(octets(0)) & "0000" & to_suv(octets(5 to 7));
+					pl := to_suv(octets(7 downto 5)) & "0000" & to_ocode(octets(0)) & to_suv(octets(4 downto 1)) & x"66";
 				elsif is_ocode(octets(4)) then -- O0 D1 D2 D3/O4 D5 D6 D7
-					pl := x"55" & to_suv(octets(1 to 3)) & to_ocode(octets(0)) & to_ocode(octets(4)) & to_suv(octets(5 to 7));
+					pl := to_suv(octets(7 downto 5)) & to_ocode(octets(4)) & to_ocode(octets(0)) & to_suv(octets(3 downto 1)) & x"55";
 				end if;
 			when "10000000" => -- S0 D1 D2 D3/D4 D5 D6 D7
 				if octets(0) = xgmii_octet_start_c then
-					pl := x"78" & to_suv(octets(1 to 7));
+					pl := to_suv(octets(7 downto 1)) & x"78";
 				end if;
 			when "10001111" => -- O0 D1 D2 D3/C4 C5 C6 C7
-				pl := x"4b" & to_suv(octets(1 to 3)) & to_ocode(octets(0)) & to_ccode(octets(4 to 7));
+				pl := to_ccode(octets(7 downto 4)) & to_ocode(octets(0)) & to_suv(octets(3 downto 1)) & x"4b";
 			when "01111111" =>
 				if octets(1) = xgmii_octet_terminate_c then -- D0 T1 C2 C3/C4 C5 C6 C7
-					pl := x"99" & octets(0) & "000000" & to_ccode(octets(2 to 7));
+					pl := to_ccode(octets(7 downto 2)) & "000000" & octets(0) & x"99";
 				end if;
 			when "00111111" =>
 				if octets(2) = xgmii_octet_terminate_c then -- D0 D1 T2 C3/C4 C5 C6 C7
-					pl := x"aa" & to_suv(octets(0 to 1)) & "00000" & to_ccode(octets(2 to 7));
+					pl := to_ccode(octets(7 downto 2)) & "00000" & to_suv(octets(1 downto 0)) & x"aa";
 				end if;
 			when "00011111" =>
 				if octets(3) = xgmii_octet_terminate_c then -- D0 D1 D2 T3/C4 C5 C6 C7
-					pl := x"b4" & to_suv(octets(0 to 2)) & "0000" & to_ccode(octets(3 to 7));
+					pl := to_ccode(octets(7 downto 3)) & "0000" & to_suv(octets(2 downto 0)) & x"b4";
 				end if;
 			when "00001111" =>
 				if octets(4) = xgmii_octet_terminate_c then -- D0 D1 D2 D3/T4 C5 C6 C7
-					pl := x"cc" &  to_suv(octets(0 to 3)) & "00" & to_ccode(octets(4 to 7));
+					pl := to_ccode(octets(7 downto 4)) & "00" & to_suv(octets(3 downto 0)) & x"cc";
 				end if;
 			when "00000111" =>
 				if octets(5) = xgmii_octet_terminate_c then -- D0 D1 D2 D3/D4 T5 C6 C7
-					pl := x"d2" &  to_suv(octets(0 to 4)) & "00" & to_ccode(octets(5 to 7));
+					pl := to_ccode(octets(7 downto 5)) & "00" & to_suv(octets(4 downto 0)) & x"d2";
 				end if;
 			when "00000011" =>
 				if octets(6) = xgmii_octet_terminate_c then -- D0 D1 D2 D3/D4 D5 T6 C7
-					pl := x"e1" &  to_suv(octets(0 to 5)) & "0" & to_ccode(octets(6 to 7));
+					pl := to_ccode(octets(7 downto 6)) & "0" & to_suv(octets(5 downto 0)) & x"e1";
 				end if;
 			when "00000001" =>
 				if octets(7) = xgmii_octet_terminate_c then -- D0 D1 D2 D3/D4 D5 D6 T7
-					pl := x"ff" &  to_suv(octets(0 to 6));
+					pl := to_suv(octets(6 downto 0)) & x"ff";
 				end if;
 			when others => null;
 		end case;
-		assert not is_x(pl) report "encode_6466b: invalid input data block format " & to_string(first_i, second_i) severity warning;
-		return "10" & pl;
+		assert not is_x(pl) report "encode_6466b: invalid input data block format " & to_string(first, second) severity warning;
+		return code66_t'(pl & "10");
 	end;
 
-	function decode_6466b(code_i :  std_ulogic_vector) return xgmii_vec_t is
+	function decode_6466b(code : code66_t) return xgmii_vec_t is
+	
 		type code_type_t is ('D', 'C', 'O', 'S', 'T', 'X');
 		type code_type_vec_t is array(natural range<>) of code_type_t;
 		type natural_vec_t is array(natural range<>) of natural;
@@ -257,6 +261,9 @@ package body ethernet_10g is
 			types : code_type_vec_t(0 to 7);
 			starts : natural_vec_t(0 to 7);
 		end record;
+
+		-- Standard IEEE802.3-2015 section 4 clause 49:
+		-- Code the table from Figure 49-7 -- 64B/66B block formats
 		function field_to_format(field : octet_t) return control_block_format_t is
 		begin
 			case field is
@@ -277,14 +284,14 @@ package body ethernet_10g is
 				when x"ff" => return control_block_format_t'(types => "DDDDDDDT", starts => (10, 18, 24, 32, 40, 48, 56, 66));
 				when others => return control_block_format_t'(types => "XXXXXXXX", starts => (others => 66));
 			end case;
-		end;
-		alias code : std_ulogic_vector(0 to 65) is code_i;
+		end;		
+
 		function decode_data(type_i : code_type_t; start_i : natural) return octet_t is
 		begin
 			case type_i is
-				when 'D' => return octet_t(code(start_i to start_i+7));
-				when 'C' => return ccode_to_octet(code(start_i to start_i+6));
-				when 'O' => return ocode_to_octet(code(start_i to start_i+3));
+				when 'D' => return octet_t(code(start_i+7 downto start_i));
+				when 'C' => return ccode_to_octet(code(start_i+6 downto start_i));
+				when 'O' => return ocode_to_octet(code(start_i+3 downto start_i));
 				when 'S' => assert start_i = 66; return xgmii_octet_start_c;
 				when 'T' => assert start_i = 66; return xgmii_octet_terminate_c;
 				when 'X' => return (others => 'X');
@@ -298,16 +305,16 @@ package body ethernet_10g is
 				when 'X' => return 'X';
 			end case;
 		end;
-		variable data : octet_vec_t(0 to 7) := (others => (others => 'X'));
-		variable control : std_ulogic_vector(0 to 7) := (others => 'X');
+		variable data : octet_vec_t(7 downto 0) := (others => (others => 'X'));
+		variable control : std_ulogic_vector(7 downto 0) := (others => 'X');
 		variable format : control_block_format_t;
 	begin
-		case code(0 to 1) is
-		when "01" =>
-			data := to_octet(code(2 to 65));
-			control := (others => '0');
+		case code(1 downto 0) is
 		when "10" =>
-			format := field_to_format(code(2 to 9));
+			data := to_octet(code(65 downto 2));
+			control := (others => '0');
+		when "01" =>
+			format := field_to_format(code(9 downto 2));
 			for i in 0 to 7 loop
 				data(i) := decode_data(format.types(i), format.starts(i));
 				control(i) := decode_control(format.types(i));
@@ -316,8 +323,8 @@ package body ethernet_10g is
 			null;
 		end case;
 		return (
-			0 => (clock => 'X', data => to_suv(data(0 to 3)), control => control(0 to 3)),
-			1 => (clock => 'X', data => to_suv(data(4 to 7)), control => control(4 to 7)));
+			0 => (clock => 'X', data => to_suv(data(3 downto 0)), control => control(3 downto 0)),
+			1 => (clock => 'X', data => to_suv(data(7 downto 4)), control => control(7 downto 4)));
 	end;
 end;
 
@@ -408,9 +415,9 @@ architecture rtl of pcs_6466b_tx is
 
 	signal last_xgmii_r : xgmii_t := xgmii_idle_c;
 	signal encoder_valid_r : std_ulogic := '0';
-	signal encoder_data_r : std_ulogic_vector(65 downto 0);
+	signal encoder_data_r : code66_t;
 	signal scrambler_valid : std_ulogic;
-	signal scrambler_data : std_ulogic_vector(65 downto 0);
+	signal scrambler_data : code66_t;
 	signal demux_data : std_ulogic_vector(32 downto 0);
 	signal xsbi : xsbi_t;
 
