@@ -193,7 +193,7 @@ package body ethernet_10g is
 				return "01" & data;
 			when "11111111" =>
 				if octets(0) = xgmii_octet_terminate_c then -- T0 C1 C2 C3/C4 C5 C6 C7
-					pl := x"87" & "-------" & to_ccode(octets(1 to 7));
+					pl := x"87" & "0000000" & to_ccode(octets(1 to 7));
 				else -- C0 C1 C2 C3/C4 C5 C6 C7
 					pl := x"1e" & to_ccode(octets);
 				end if;
@@ -201,43 +201,43 @@ package body ethernet_10g is
 				if is_ocode(octets(4)) then -- C0 C1 C2 C3/O4 D5 D6 D7
 					pl := x"2d" & to_ccode(octets(0 to 4)) & to_ocode(octets(4)) & to_suv(octets(5 to 7));
 				elsif octets(4) = xgmii_octet_start_c then -- C0 C1 C2 C3/S4 D5 D6 D7
-					pl := x"33" & to_ccode(octets(0 to 4)) & "----" & to_suv(octets(5 to 7));
+					pl := x"33" & to_ccode(octets(0 to 4)) & "0000" & to_suv(octets(5 to 7));
 				end if;
 			when "10001000" =>
 				if octets(4) = xgmii_octet_start_c then -- O0 D1 D2 D3/S4 D5 D6 D7
-					pl := x"66" & to_suv(octets(1 to 4)) & to_ocode(octets(0)) & "----" & to_suv(octets(5 to 7));
+					pl := x"66" & to_suv(octets(1 to 4)) & to_ocode(octets(0)) & "0000" & to_suv(octets(5 to 7));
 				elsif is_ocode(octets(4)) then -- O0 D1 D2 D3/O4 D5 D6 D7
 					pl := x"55" & to_suv(octets(1 to 3)) & to_ocode(octets(0)) & to_ocode(octets(4)) & to_suv(octets(5 to 7));
 				end if;
 			when "10000000" => -- S0 D1 D2 D3/D4 D5 D6 D7
-					pl := x"78" & to_suv(octets(1 to 7));
 				if octets(0) = xgmii_octet_start_c then
+					pl := x"78" & to_suv(octets(1 to 7));
 				end if;
 			when "10001111" => -- O0 D1 D2 D3/C4 C5 C6 C7
 				pl := x"4b" & to_suv(octets(1 to 3)) & to_ocode(octets(0)) & to_ccode(octets(4 to 7));
 			when "01111111" =>
 				if octets(1) = xgmii_octet_terminate_c then -- D0 T1 C2 C3/C4 C5 C6 C7
-					pl := x"99" & octets(0) & "------" & to_ccode(octets(2 to 7));
+					pl := x"99" & octets(0) & "000000" & to_ccode(octets(2 to 7));
 				end if;
 			when "00111111" =>
 				if octets(2) = xgmii_octet_terminate_c then -- D0 D1 T2 C3/C4 C5 C6 C7
-					pl := x"aa" & to_suv(octets(0 to 1)) & "-----" & to_ccode(octets(2 to 7));
+					pl := x"aa" & to_suv(octets(0 to 1)) & "00000" & to_ccode(octets(2 to 7));
 				end if;
 			when "00011111" =>
 				if octets(3) = xgmii_octet_terminate_c then -- D0 D1 D2 T3/C4 C5 C6 C7
-					pl := x"b4" & to_suv(octets(0 to 2)) & "----" & to_ccode(octets(3 to 7));
+					pl := x"b4" & to_suv(octets(0 to 2)) & "0000" & to_ccode(octets(3 to 7));
 				end if;
 			when "00001111" =>
 				if octets(4) = xgmii_octet_terminate_c then -- D0 D1 D2 D3/T4 C5 C6 C7
-					pl := x"cc" &  to_suv(octets(0 to 3)) & "--" & to_ccode(octets(4 to 7));
+					pl := x"cc" &  to_suv(octets(0 to 3)) & "00" & to_ccode(octets(4 to 7));
 				end if;
 			when "00000111" =>
 				if octets(5) = xgmii_octet_terminate_c then -- D0 D1 D2 D3/D4 T5 C6 C7
-					pl := x"d2" &  to_suv(octets(0 to 4)) & "--" & to_ccode(octets(5 to 7));
+					pl := x"d2" &  to_suv(octets(0 to 4)) & "00" & to_ccode(octets(5 to 7));
 				end if;
 			when "00000011" =>
 				if octets(6) = xgmii_octet_terminate_c then -- D0 D1 D2 D3/D4 D5 T6 C7
-					pl := x"e1" &  to_suv(octets(0 to 5)) & "-" & to_ccode(octets(6 to 7));
+					pl := x"e1" &  to_suv(octets(0 to 5)) & "0" & to_ccode(octets(6 to 7));
 				end if;
 			when "00000001" =>
 				if octets(7) = xgmii_octet_terminate_c then -- D0 D1 D2 D3/D4 D5 D6 T7
