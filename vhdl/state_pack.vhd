@@ -43,7 +43,7 @@ package body state_pack is
 	function code_length(length : natural; encoding : encoding_t) return natural is
 	begin
 		case encoding is
-			when binary => return binary_log(length);
+			when binary => return log_ceil(length);
 			when onehot => return length;
 		end case;
 	end;
@@ -78,7 +78,7 @@ package body state_pack is
 					if one_count(code) /= 1 then
 						return -1;
 					else
-						return binary_log(to_integer(unsigned(code)));
+						return log_ceil(to_integer(unsigned(code)));
 					end if;
 			end case;
 		end if;

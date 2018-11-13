@@ -49,7 +49,7 @@ package body tb_pack is
 		variable l : line;
 		variable width : natural;
 	begin
-		return to_hstring(to_unsigned(number, binary_log(number+1)));
+		return to_hstring(to_unsigned(number, log_ceil(number+1)));
 	end;
 
 	function to_hstring(value : std_ulogic_vector) return string is

@@ -8,14 +8,17 @@ package rtl_pack is
 	function to_bit(value : boolean) return bit;
 	function to_stdulogic(value : boolean) return std_ulogic;
 
-	--! Calculate the binary logarithm of 'number', rounding up. 0/1 yield 0.
-	function binary_log(number : natural) return natural;
+	subtype base_t is natural range 2 to natural'high;
+
+	--! Calculate the logarithm of 'number' to given 'base', rounding up.
+	function log_ceil(number : positive; base : base_t := 2) return natural;
 
 	--! Round 'number' up to the next multiple of 'factor'.
 	function next_multiple(number : natural; factor : positive) return natural;
 
-	--! Revese the bit-order of a vector. Direction stays the same.
-	function bit_reverse(vector : std_ulogic_vector) return std_ulogic_vector;
+	--! Reverse the bits of a vector.
+	--! The Direction of the range stays the same.
+	function reverse(vector : std_ulogic_vector) return std_ulogic_vector;
 
 	--! Count the number of '1's in a vector.
 	function one_count(vector : std_ulogic_vector) return natural;
@@ -47,12 +50,12 @@ package body rtl_pack is
 		end if;
 	end;
 
-	function binary_log(number : natural) return natural is
+	function log_ceil(number : positive; base : base_t := 2) return natural is
 		variable climb : positive := 1;
 		variable result : natural := 0;
 	begin
 		while climb < number loop
-			climb := climb * 2;
+			climb := climb * base;
 			result := result + 1;
 		end loop;
 		return result;
@@ -67,14 +70,13 @@ package body rtl_pack is
 		return result;
 	end;
 
-	function bit_reverse(vector : std_ulogic_vector) return std_ulogic_vector is
-		variable reverse : std_ulogic_vector(vector'reverse_range);
-		variable result  : std_ulogic_vector(vector'range);
+	function reverse(vector : std_ulogic_vector) return std_ulogic_vector is
+		alias renumbered : std_ulogic_vector(vector'reverse_range) is vector;
+		variable result : std_ulogic_vector(vector'range);
 	begin
 		for i in vector'range loop
-			reverse(i) := vector(i);
+			result(i) := renumbered(i);
 		end loop;
-		result := reverse;
 		return result;
 	end;
 
@@ -94,7 +96,7 @@ package body rtl_pack is
 		name : string := "(unnamed)";
 		sl : severity_level := error) return boolean is
 	begin
-		assert condition report "check failed: " & name severity sl;
+		assert condition report "rtl_pack.check failed: " & name severity sl;
 		return condition;
 	end;
 
